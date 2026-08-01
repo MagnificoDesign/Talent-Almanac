@@ -285,6 +285,25 @@ footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid va
   </div>
 </section>
 
+<section id="s-comps">
+  <p class="note"><b>Prospect comps.</b> Every qualified minor leaguer this season, matched against twenty seasons of same-level history by statistical shape — K%, BB%, power, production, speed, all normalized within league-season — with <b>age versus level</b> weighted heaviest. Each comp carries the player's eventual career WAR, and cohort odds count only comps old enough for the answer to be in (through __MAT__). Upside = similarity-weighted career WAR of matured comps. This is a triage tool built from public stat lines: it can't see swings, defense, makeup, or medicals — it points eyes and quantifies priors.</p>
+  <div class="seg" role="group"><button id="cm-find" aria-pressed="true">Prospect finder</button><button id="cm-star" aria-pressed="false">Star lookup</button></div>
+  <div id="cm-a">
+    <div class="controls">
+      <select id="cx-org"></select><select id="cx-lvl"></select><select id="cx-grp"><option value="0">Hitters</option><option value="1">Pitchers</option></select>
+      <input id="cx-q" type="search" placeholder="Search a prospect…">
+      <button class="btn" id="cx-csv">CSV</button>
+    </div>
+    <p class="count" id="cx-count"></p>
+    <div class="lbox" id="cx-list"></div>
+  </div>
+  <div id="cm-b" style="display:none">
+    <div class="controls"><select id="cx-starsel"></select></div>
+    <p class="count">Current prospects whose season most resembles this player's minor-league profile:</p>
+    <div class="lbox" id="cx-starlist"></div>
+  </div>
+</section>
+
 <section id="s-roster">
   <p class="note"><b>All 780 active-roster players, classified by how their club got them</b>, with the WAR each has produced for that club (2015–present, both stints for returnees). Deadline snapshot as of the build; use Refresh to re-pull live rosters — brand-new movers show as "Recent move" until the next full rebuild.</p>
   <div class="controls">
@@ -325,7 +344,7 @@ favSel.onchange=()=>{
 };
 const TABS=[["grades","Grades"],["team","Team page"],["ledger","Team ledgers"],["draft","Draft"],["classes","Classes"],
  ["h2h","Head to head"],["acq","Trades & FA"],["net","Net ledger"],["sur","Surplus"],["intl","Intl"],
- ["ab","Arms · Bats"],["late","Late rounds"],["busts","Busts"],["orig","Originals"],["money","Money team"],["roster","Rosters"]];
+ ["ab","Arms · Bats"],["late","Late rounds"],["busts","Busts"],["orig","Originals"],["money","Money team"],["comps","Prospect comps"],["roster","Rosters"]];
 const nav=$("#tabs");
 TABS.forEach(([id,label],i)=>{
   const b=document.createElement("button");
@@ -791,6 +810,82 @@ document.addEventListener("click",e=>{
   }
   bud.oninput=run;run();
 })();
+
+/* ---------- prospect comps ---------- */
+if(DATA.pcx){
+const X=DATA.pcx, XN=X.names, XL=X.lv;
+const hitLine=d=>`${d[0]} PA · .${String(d[1]).padStart(3,"0")}/.${String(d[2]).padStart(3,"0")}/.${String(d[3]).padStart(3,"0")} · ${d[4]} HR · ${d[5]} SB`;
+const pitLine=d=>`${(d[0]/10).toFixed(0)} IP · ${d[1]} GS · ${d[2]} K · ${(d[3]/100).toFixed(2)} ERA`;
+const lineOf=(g,d)=>g===0?hitLine(d):pitLine(d);
+const warChip=(w,mat,mlb)=>{
+  const v=(w/10).toFixed(1);
+  if(!mat)return `<span class="tag" style="background:#FBF1D8;color:#8A6508">developing</span>`;
+  if(!mlb)return `<span class="tag" style="background:#F3E2DE;color:#B3442E">never MLB</span>`;
+  const c=w>=150?["#E2F0E6","#1E7A46"]:w>=60?["#E3EDF5","#005A9C"]:w>=15?["#E8ECEF","#3E5566"]:["#EEEEEC","#666"];
+  return `<span class="tag" style="background:${c[0]};color:${c[1]}">${v} WAR</span>`;
+};
+const ORGS=[...new Set(X.cur.map(r=>r[1]).filter(Boolean))].sort();
+$("#cx-org").innerHTML='<option value="">All orgs</option>'+ORGS.map(o=>`<option${o==="LAD"?"":""}>${o}</option>`).join("");
+$("#cx-lvl").innerHTML='<option value="">All levels</option>'+Object.entries(XL).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+let curRows=[];
+function drawFinder(){
+  const o=$("#cx-org").value,l=$("#cx-lvl").value,g=+$("#cx-grp").value,q=$("#cx-q").value.trim().toLowerCase();
+  curRows=X.cur.map((r,i)=>({i,r})).filter(({r})=>r[3]===g&&(!o||r[1]===o)&&(!l||String(r[2])===l)&&(!q||XN[r[0]].toLowerCase().includes(q)));
+  curRows.sort((a,b)=>(b.r[9]||-1)-(a.r[9]||-1));
+  $("#cx-count").textContent=curRows.length+" prospects · sorted by comp-based upside";
+  $("#cx-list").innerHTML=curRows.slice(0,120).map(({i,r})=>`<div class="lrow" data-cx="${i}" style="cursor:pointer">
+    <span class="lname"><b>${XN[r[0]]}</b><br><span class="lmeta">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]} · ${r[6]||""}${r[5]<=-10?" · young for level":""}${r[8]?" · early sample":""}</span></span>
+    <span class="lmeta">${lineOf(r[3],r[7])}</span>
+    <span class="lwar">${r[9]>=0?(r[9]/10).toFixed(1):"—"}</span></div>`).join("")||'<div class="empty">No prospects match.</div>';
+}
+["cx-org","cx-lvl","cx-grp"].forEach(id=>$("#"+id).onchange=drawFinder);
+$("#cx-q").oninput=drawFinder;
+$("#cx-list").addEventListener("click",e=>{
+  const row=e.target.closest("[data-cx]"); if(!row)return;
+  openProspect(+row.dataset.cx);
+});
+function openProspect(i){
+  const r=X.cur[i];
+  const comps=r[10].map(([hi,sim])=>{const hh=X.hist[hi];return {hh,sim};});
+  const mat=comps.filter(c=>c.hh[6]);
+  let odds="";
+  if(mat.length>=3){
+    const n=mat.length;
+    const star=mat.filter(c=>c.hh[5]>=150).length, ev=mat.filter(c=>c.hh[5]>=60&&c.hh[5]<150).length,
+          role=mat.filter(c=>c.hh[5]>=15&&c.hh[5]<60).length, nev=mat.filter(c=>!c.hh[8]).length;
+    odds=`Cohort of ${n} matured comps: <b>${Math.round(star/n*100)}% star</b> · ${Math.round(ev/n*100)}% everyday · ${Math.round(role/n*100)}% role · ${Math.round(nev/n*100)}% never reached MLB`;
+  } else odds="Too few matured comps for reliable odds — profile is unusual or level history thin.";
+  card.innerHTML=`<button class="pcx" aria-label="Close">✕</button>
+   <div class="pchead"><span class="pcname">${XN[r[0]]}</span><span class="pctot">${r[9]>=0?(r[9]/10).toFixed(1):"—"}</span></div>
+   <div class="pcsub">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]}${r[5]<=-10?` · <b>${(-r[5]/10).toFixed(1)} yrs young for level</b>`:""} · ${lineOf(r[3],r[7])}${r[8]?" · early sample":""}</div>
+   <div class="pcsub">${odds}</div>
+   ${comps.map(({hh,sim})=>`<div class="lrow"><span class="lname"><b>${XN[hh[0]]}</b><br><span class="lmeta">${hh[1]} ${XL[hh[2]]} · age ${hh[4]} · ${lineOf(hh[3],hh[7])}</span></span><span class="lmeta">${sim}%</span>${warChip(hh[5],hh[6],hh[8])}</div>`).join("")}`;
+  mask.classList.add("on");card.classList.add("on");
+}
+// star lookup
+const starNames=Object.keys(X.stars).map(k=>isNaN(+k)?k:XN[+k]).sort();
+const starKey={};Object.keys(X.stars).forEach(k=>starKey[isNaN(+k)?k:XN[+k]]=k);
+$("#cx-starsel").innerHTML=starNames.map(n=>`<option>${n}</option>`).join("");
+function drawStar(){
+  const k=starKey[$("#cx-starsel").value];
+  const list=X.stars[k]||[];
+  $("#cx-starlist").innerHTML=list.map(([ci,sim])=>{const r=X.cur[ci];
+    return `<div class="lrow" data-cx="${ci}" style="cursor:pointer"><span class="lname"><b>${XN[r[0]]}</b><br><span class="lmeta">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]} · ${lineOf(r[3],r[7])}</span></span><span class="lwar">${sim}%</span></div>`;}).join("")||'<div class="empty">No current matches.</div>';
+}
+$("#cx-starsel").onchange=drawStar;
+$("#cx-starlist").addEventListener("click",e=>{const row=e.target.closest("[data-cx]");if(row)openProspect(+row.dataset.cx);});
+$("#cm-find").onclick=()=>{$("#cm-a").style.display="";$("#cm-b").style.display="none";$("#cm-find").setAttribute("aria-pressed",true);$("#cm-star").setAttribute("aria-pressed",false);};
+$("#cm-star").onclick=()=>{$("#cm-a").style.display="none";$("#cm-b").style.display="";$("#cm-find").setAttribute("aria-pressed",false);$("#cm-star").setAttribute("aria-pressed",true);drawStar();};
+$("#cx-csv").onclick=()=>{
+  const rows=[["Player","Org","Level","Age","Pos","Line","Upside","TopComp","TopCompWAR"]];
+  curRows.forEach(({r})=>{const c=r[10][0];const hh=c?X.hist[c[0]]:null;
+    rows.push([XN[r[0]],r[1],XL[r[2]],r[4],r[6],lineOf(r[3],r[7]),r[9]>=0?(r[9]/10).toFixed(1):"",hh?XN[hh[0]]:"",hh?(hh[5]/10).toFixed(1):""]);});
+  const csv=rows.map(a=>a.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const u=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  const a=document.createElement("a");a.href=u;a.download="prospect_comps.csv";a.click();
+};
+drawFinder();
+}
 
 /* ---------- roster explorer + refresh ---------- */
 let R=DATA.roster.rows;

@@ -482,6 +482,168 @@ MINSAL = 780000
 market = sorted(([names.get(pid, str(pid)), pos.get(pid, ""), sal.get(pid, MINSAL), S(w26[pid]), teampick.get(pid, "")]
                  for pid in pids26 if pos.get(pid)), key=lambda r: -r[3])
 
+
+# ---------------- prospect comps (Phase 1) ----------------
+import gzip, statistics, math, os
+cwALL = collections.Counter()
+for (m, y, fr), w in allrows.items(): cwALL[m] += w
+
+pcx = None
+if os.path.exists("milb_history.json.gz"):
+    with gzip.open("milb_history.json.gz", "rt", encoding="utf-8") as f:
+        H = json.load(f)
+    SPORTS = [11, 12, 13, 14]
+    LVL = {11: "AAA", 12: "AA", 13: "A+", 14: "A"}
+    def ip_outs(s):
+        try:
+            a = str(s).split("."); return int(a[0]) * 3 + (int(a[1]) if len(a) > 1 else 0)
+        except: return 0
+    def fetch_milb(year, min_pa, min_outs, min_bf):
+        out = []
+        for sp in SPORTS:
+            for grp, g in (("hitting", 0), ("pitching", 1)):
+                off = 0
+                while True:
+                    d = jget(f"https://statsapi.mlb.com/api/v1/stats?stats=season&group={grp}&season={year}&sportId={sp}&limit=1000&offset={off}&playerPool=all")
+                    st = (d.get("stats") or [{}])[0]; sps = st.get("splits", [])
+                    for s in sps:
+                        x = s.get("stat", {}); pl = s.get("player", {})
+                        pid = pl.get("id"); nm = pl.get("fullName", ""); age = x.get("age")
+                        if not pid or age is None: continue
+                        lg = (s.get("league") or {}).get("id", 0)
+                        if g == 0:
+                            pa = x.get("plateAppearances", 0) or 0
+                            if pa < min_pa: continue
+                            so = x.get("strikeOuts", 0) or 0; bb = x.get("baseOnBalls", 0) or 0
+                            try:
+                                avg = float(x.get("avg") or 0); slg = float(x.get("slg") or 0)
+                                obp = float(x.get("obp") or 0); ops = float(x.get("ops") or 0)
+                            except: continue
+                            out.append(dict(pid=pid, nm=nm, y=year, sp=sp, g=0, lg=lg, age=age,
+                                f=dict(k=so/pa, bb=bb/pa, iso=slg-avg, ops=ops, sb=(x.get("stolenBases",0) or 0)/pa),
+                                disp=[pa, round(avg*1000), round(obp*1000), round(slg*1000), x.get("homeRuns",0) or 0, x.get("stolenBases",0) or 0]))
+                        else:
+                            bf = x.get("battersFaced", 0) or 0; outs = ip_outs(x.get("inningsPitched", "0"))
+                            if outs < min_outs or bf < min_bf: continue
+                            so = x.get("strikeOuts", 0) or 0; bb = x.get("baseOnBalls", 0) or 0
+                            gp = x.get("gamesPitched", x.get("gamesPlayed", 1)) or 1; gs = x.get("gamesStarted", 0) or 0
+                            try: era = float(x.get("era") or 0)
+                            except: era = 0
+                            out.append(dict(pid=pid, nm=nm, y=year, sp=sp, g=1, lg=lg, age=age,
+                                f=dict(k=so/bf, bb=bb/bf, hr=(x.get("homeRuns",0) or 0)/bf, era=era, role=gs/gp),
+                                disp=[round(outs/3*10), gs, so, round(era*100)]))
+                    off += 1000
+                    if off >= (st.get("totalSplits") or 0): break
+        return out
+    def zize(rows):
+        coh = collections.defaultdict(list); coh2 = collections.defaultdict(list); ages = collections.defaultdict(list)
+        for r in rows:
+            coh[(r["y"], r["sp"], r["g"], r["lg"])].append(r); coh2[(r["y"], r["sp"], r["g"])].append(r)
+            ages[(r["y"], r["sp"], r["g"])].append(r["age"])
+        def stx(gr):
+            ks = sorted(gr[0]["f"].keys()); o = {}
+            for k in ks:
+                v = [q["f"][k] for q in gr]; o[k] = (statistics.fmean(v), statistics.pstdev(v) or 1e-6)
+            return o
+        c1 = {k: (stx(v) if len(v) >= 25 else None) for k, v in coh.items()}
+        c2 = {k: stx(v) for k, v in coh2.items()}
+        am = {k: statistics.fmean(v) for k, v in ages.items()}
+        for r in rows:
+            st = c1.get((r["y"], r["sp"], r["g"], r["lg"])) or c2[(r["y"], r["sp"], r["g"])]
+            r["z"] = [round((r["f"][k] - st[k][0]) / st[k][1] * 100) for k in sorted(r["f"].keys())]
+            r["ad"] = round((r["age"] - am[(r["y"], r["sp"], r["g"])]) * 10)
+    # append any newly-completed seasons to the cache
+    if H["maxseason"] < CUR - 1:
+        add = []
+        for yy in range(H["maxseason"] + 1, CUR):
+            add += fetch_milb(yy, 200, 180, 240)
+        if add:
+            zize(add)
+            nix = {n: i for i, n in enumerate(H["names"])}
+            for r in add:
+                if r["nm"] not in nix: nix[r["nm"]] = len(H["names"]); H["names"].append(r["nm"])
+                H["rows"].append([r["pid"], nix[r["nm"]], r["y"], r["sp"], r["g"], r["age"], r["ad"], r["z"], r["disp"]])
+            H["maxseason"] = CUR - 1
+            with gzip.open("milb_history.json.gz", "wt", encoding="utf-8") as f: json.dump(H, f, separators=(",", ":"))
+    # current season
+    curp = fetch_milb(CUR, 80, 75, 100)
+    zize(curp)
+    # positions + orgs for current
+    cpids = sorted({r["pid"] for r in curp})
+    cpos = {}
+    for i in range(0, len(cpids), 100):
+        for p in jget("https://statsapi.mlb.com/api/v1/people?personIds=" + ",".join(map(str, cpids[i:i+100]))).get("people", []):
+            cpos[p["id"]] = (p.get("primaryPosition") or {}).get("abbreviation", "")
+    torg = {}
+    for sp in SPORTS:
+        for t in jget(f"https://statsapi.mlb.com/api/v1/teams?sportId={sp}&season={CUR}").get("teams", []):
+            torg[t["id"]] = FRMAP.get(t.get("parentOrgName", ""), "")
+    # re-fetch team ids for current rows (stats splits carry team) - fold into fetch: quick second pass via splits not stored; use league-free org from people? keep org via team in fetch:
+    WH = {"bb": 1.0, "iso": 1.2, "k": 1.2, "ops": 1.0, "sb": 0.6}
+    WP = {"bb": 1.1, "era": 0.5, "hr": 0.7, "k": 1.4, "role": 0.8}
+    KH = sorted(WH.keys()); KP = sorted(WP.keys())
+    hist = [r for r in H["rows"]]
+    hby = collections.defaultdict(list)
+    for i, r in enumerate(hist): hby[(r[4], r[3])].append(i)
+    names2 = list(H["names"]); nix2 = {n: i for i, n in enumerate(names2)}
+    def NI2(n):
+        if n not in nix2: nix2[n] = len(names2); names2.append(n)
+        return nix2[n]
+    used_h = {}
+    cur_rows = []
+    for r in curp:
+        ws = WH if r["g"] == 0 else WP; ks = KH if r["g"] == 0 else KP
+        wv = [ws[k] for k in ks]
+        cand = hby[(r["g"], r["sp"])]
+        best = []
+        za = r["z"]; ada = r["ad"]
+        for i in cand:
+            hrow = hist[i]
+            if hrow[0] == r["pid"]: continue
+            zb = hrow[7]
+            d = 2.0 * (((ada - hrow[6]) / 10.0) / 1.2) ** 2
+            for j in range(len(ks)):
+                dd = (za[j] - zb[j]) / 100.0
+                d += wv[j] * dd * dd
+            best.append((d, i))
+        best.sort()
+        comps = []
+        for d, i in best[:12]:
+            if i not in used_h: used_h[i] = len(used_h)
+            comps.append([used_h[i], max(1, round(100 - math.sqrt(d) * 22))])
+        # upside from matured comps
+        num = den = 0.0; nmat = 0
+        for (d, i) in best[:12]:
+            hrow = hist[i]
+            if hrow[2] <= CUR - 5:
+                w = 1.0 / (0.3 + d); num += w * max(0.0, cwALL.get(hrow[0], 0.0)); den += w; nmat += 1
+        up = round(num / den * 10) if nmat >= 3 else -1
+        flag = 1 if (r["disp"][0] < 160 if r["g"] == 0 else r["disp"][0] < 1350) else 0
+        cur_rows.append([NI2(r["nm"]), "", r["sp"], r["g"], r["age"], r["ad"], cpos.get(r["pid"], ""), r["disp"], flag, up, comps, r["pid"]])
+    # orgs: need team per current player - fetch rosters? use statsapi people currentTeam
+    for i in range(0, len(cpids), 100):
+        for p in jget("https://statsapi.mlb.com/api/v1/people?personIds=" + ",".join(map(str, cpids[i:i+100])) + "&hydrate=currentTeam").get("people", []):
+            ct = (p.get("currentTeam") or {}).get("id")
+            org = torg.get(ct, "")
+            for cr in cur_rows:
+                if cr[11] == p["id"]: cr[1] = org
+    hist_out = [None] * len(used_h)
+    for i, idx in used_h.items():
+        hrow = hist[i]
+        hist_out[idx] = [hrow[1], hrow[2], hrow[3], hrow[4], hrow[5], round(max(-9.9, cwALL.get(hrow[0], 0.0)) * 10),
+                         1 if hrow[2] <= CUR - 5 else 0, hrow[8], 1 if hrow[0] in cwALL else 0, hrow[0]]
+    stars = collections.defaultdict(list)
+    for ci, cr in enumerate(cur_rows):
+        for hi, sim in cr[10]:
+            hp = hist_out[hi]
+            if cwALL.get(hp[9], 0.0) >= 12:
+                stars[hp[0]].append([ci, sim])
+    stars = {names2[k] if isinstance(k, int) else k: sorted(v, key=lambda x: -x[1])[:10] for k, v in stars.items()}
+    for cr in cur_rows: cr.pop()  # drop pid
+    for h in hist_out: h.pop()    # drop pid
+    pcx = dict(lv=LVL, names=names2, cur=cur_rows, hist=hist_out, stars=stars, mat=CUR - 5)
+    print("pcx: cur", len(cur_rows), "| hist referenced", len(hist_out), "| stars", len(stars), flush=True)
+
 # ---------------- grades ----------------
 mm = lambda lst, k: {r["team"]: r[k] for r in lst}
 surM = mm(surplus, "surplus"); netM = mm(net, "net"); intlM = mm(intl_out, "war")
@@ -514,7 +676,7 @@ data = dict(asof=TODAY.strftime("%B %d, %Y"), games=GAMES, grades=grades, draft=
     acq=acq_out, net=net, surplus=surplus, intl=intl_out, armsbats=armsbats,
     busts=dict(rows=brows, counts=dict(bcnt)), roster=dict(rows=roster_rows, counts={t: dict(c) for t, c in rc.items()}),
     detail=detail, deals=deals, late={t: late.get(t, []) for t in TEAMS}, classes=classes,
-    positions=positions, refresh=refresh, tid=tid, loyalty=loyalty, market=market, pc=pc, pcteams=TL)
+    positions=positions, refresh=refresh, tid=tid, loyalty=loyalty, market=market, pc=pc, pcteams=TL, pcx=pcx)
 
 tpl = open("template.html", encoding="utf-8").read()
 html = tpl.replace('<script src="dash_data.js"></script>',
