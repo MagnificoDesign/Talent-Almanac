@@ -489,8 +489,9 @@ cwALL = collections.Counter()
 for (m, y, fr), w in allrows.items(): cwALL[m] += w
 
 pcx = None
-if os.path.exists("milb_history.json.gz"):
-    with gzip.open("milb_history.json.gz", "rt", encoding="utf-8") as f:
+HFILE = next((f for f in ("milb_history.json.gz", "milb_history.json.gz.json", "milb history.json.gz") if os.path.exists(f)), None)
+if HFILE:
+    with gzip.open(HFILE, "rt", encoding="utf-8") as f:
         H = json.load(f)
     SPORTS = [11, 12, 13, 14]
     LVL = {11: "AAA", 12: "AA", 13: "A+", 14: "A"}
@@ -564,7 +565,7 @@ if os.path.exists("milb_history.json.gz"):
                 if r["nm"] not in nix: nix[r["nm"]] = len(H["names"]); H["names"].append(r["nm"])
                 H["rows"].append([r["pid"], nix[r["nm"]], r["y"], r["sp"], r["g"], r["age"], r["ad"], r["z"], r["disp"]])
             H["maxseason"] = CUR - 1
-            with gzip.open("milb_history.json.gz", "wt", encoding="utf-8") as f: json.dump(H, f, separators=(",", ":"))
+            with gzip.open(HFILE, "wt", encoding="utf-8") as f: json.dump(H, f, separators=(",", ":"))
     # current season
     curp = fetch_milb(CUR, 80, 75, 100)
     zize(curp)
