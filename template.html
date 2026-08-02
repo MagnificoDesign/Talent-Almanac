@@ -93,10 +93,17 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 #psuggest button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;font:inherit;padding:8px 11px;background:none;border:0;border-top:1px solid var(--line);color:var(--ink)}
 #psuggest button:first-child{border-top:0}
 #psuggest button small{color:var(--sub)}
-.pcmask{position:fixed;inset:0;background:rgba(11,37,69,.45);z-index:40;display:none}
-.pcmask.on{display:block}
-.pcard{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:16px 16px 0 0;max-height:74vh;overflow:auto;padding:14px 14px calc(18px + env(safe-area-inset-bottom,0px));display:none;box-shadow:0 -10px 30px rgba(11,37,69,.25)}
-.pcard.on{display:block}
+.pcmask{position:fixed;inset:0;background:rgba(11,37,69,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s ease;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.pcmask.on{opacity:1;pointer-events:auto}
+.pcard{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:16px 16px 0 0;max-height:78vh;min-height:170px;overflow:auto;padding:10px 14px calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 -12px 34px rgba(11,37,69,.28);display:block;visibility:hidden;pointer-events:none;transform:translateY(30px);opacity:0;transition:transform .24s cubic-bezier(.2,.8,.25,1),opacity .18s ease,visibility 0s linear .24s}
+.pcard.on{visibility:visible;pointer-events:auto;transform:none;opacity:1;transition:transform .24s cubic-bezier(.2,.8,.25,1),opacity .18s ease}
+.pcard::before{content:"";display:block;width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 8px}
+@media (prefers-reduced-motion:reduce){.pcard,.pcmask{transition:none}}
+#pcard .deal{border:1px solid var(--line);border-radius:10px;margin:0 0 8px}
+#pcard .lrow:first-of-type{border-top:0}
+.lrow:active,.gcard:active,.tchip:active,.deal:active{background:#EEF2EC}
+.chip:active,.btn:active,.pcx:active{transform:scale(.96)}
+.hq{background:rgba(255,255,255,.45)}
 .pchead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .pcname{font-family:var(--disp);font-weight:800;font-size:26px}
 .pctot{font-family:var(--disp);font-weight:800;font-size:22px;color:var(--blue)}
@@ -107,8 +114,9 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 .pcbar i{display:block;height:100%;background:var(--blue)}
 .pcbar i.neg{background:var(--neg)}
 .pcw{text-align:right;font-weight:700}
-.pcx.pback{float:left}
-.pcx{position:sticky;top:0;float:right;font:inherit;border:1px solid var(--line);background:var(--card);border-radius:999px;width:34px;height:34px;font-size:16px}
+.pcbar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px;background:var(--card);padding:0 0 6px;margin-bottom:2px}
+.pcx{font:inherit;border:1px solid var(--line);background:var(--card);border-radius:999px;width:34px;height:34px;font-size:16px;display:grid;place-items:center;box-shadow:0 1px 4px rgba(11,37,69,.12)}
+.pcbar .pcx:last-child{margin-left:auto}
 .namebtn{cursor:pointer}
 /* money team + dual war */
 .l26{color:var(--sub);font-size:11px;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
@@ -163,7 +171,7 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 .hbarL i{position:absolute;right:0;top:0;bottom:0;background:var(--blue);border-radius:4px}
 .hbarR i{position:absolute;left:0;top:0;bottom:0;background:var(--slate);border-radius:4px}
 .hbarL i.neg,.hbarR i.neg{background:var(--neg)}
-.jump{color:var(--blue);text-decoration:underline dotted;cursor:pointer}
+.jump{color:var(--blue);text-decoration:underline dotted;cursor:pointer;padding:4px 2px;margin:-4px -2px}
 .deal.hi{background:#FBF7EA;outline:2px solid #B8860B;outline-offset:-2px}
 footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid var(--line);padding-top:12px}
 </style>
@@ -635,7 +643,7 @@ table($("#t-ab"),[
 
 /* ---------- originals ---------- */
 table($("#t-orig"),[
- {k:"team",label:"Team"},{k:"war26",label:"2026 WAR (originals)",num:1,bar:1},
+ {k:"team",label:"Team",html:r=>`<span class="jump" data-dr="oroster" data-t="${r.team}">${r.team}</span>`},{k:"war26",label:"2026 WAR (originals)",num:1,bar:1},
  {k:"wins",label:"Expected record",num:1,html:r=>`<b>${r.rec}</b>`},
  {k:"tot",label:"'15–'26 WAR (originals)",num:1},
  {k:"tops",label:"Best 2026 originals",name:1}],DATA.loyalty,"war26");
@@ -807,7 +815,7 @@ sug.addEventListener("click",e=>{
 });
 function openCard(name, hl){
   const entries=PC[name]; if(!entries)return;
-  card.innerHTML=`<button class="pcx" aria-label="Close">✕</button>`+entries.map(e=>{
+  card.innerHTML=``+entries.map(e=>{
     const [seas,dr]=e;
     const tot=seas.reduce((s,r)=>s+r[2],0)/10;
     const cur=seas.find(r=>r[0]===26);
@@ -823,12 +831,12 @@ let SS=[];const PBACK='<button class="pcx pback" aria-label="Back">\u2190</butto
 function sheetShown(){
   if(!card.classList.contains("on"))SS=[];
   SS.push(card.innerHTML);
-  if(SS.length>1)card.insertAdjacentHTML("afterbegin",PBACK);
+  card.insertAdjacentHTML("afterbegin",'<div class="pcbar">'+(SS.length>1?PBACK:"")+'<button class="pcx" aria-label="Close">\u2715</button></div>');
   mask.classList.add("on");card.classList.add("on");
 }
 function closeCard(){SS=[];mask.classList.remove("on");card.classList.remove("on");}
 mask.onclick=closeCard;
-card.addEventListener("click",e=>{ if(e.target.closest(".pback")){SS.pop();card.innerHTML=SS[SS.length-1];if(SS.length>1)card.insertAdjacentHTML("afterbegin",PBACK);return;}
+card.addEventListener("click",e=>{ if(e.target.closest(".pback")){SS.pop();card.innerHTML=SS[SS.length-1];card.insertAdjacentHTML("afterbegin",'<div class="pcbar">'+(SS.length>1?PBACK:"")+'<button class="pcx" aria-label="Close">\u2715</button></div>');return;}
   if(e.target.closest(".pcx")) closeCard(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeCard(); });
 const DEFS={
@@ -848,14 +856,14 @@ const DEFS={
 "Draftees '26 WAR":"WAR that the club's 2015\u20132024 draftees are producing this season, for any team.",
 "Originals '26 record":"Projected record if every player were still with the organization that first drafted or signed him."};
 function openDef(title, body){
-  card.innerHTML=`<button class="pcx" aria-label="Close">\u2715</button>
+  card.innerHTML=`
    <div class="pchead"><span class="pcname" style="font-size:22px">${title}</span></div>
    <div class="pcsub" style="font-size:14px;line-height:1.55;margin-top:6px">${body}</div>`;
   sheetShown();
 }
 const TPD={"Draft WAR":"draft","Surplus vs slot":"draft","Hit rate %":"hits21","Rd 5+ WAR":"late","Net trades":"deal*",
  "Trade WAR":"trades","FA WAR":"fa","Reclamation":"scrap","Waivers":"waiver","Intl WAR":"intl",
- "Drafted arms":"arms","Drafted bats":"bats","Draftees '26 WAR":"draft26","Originals '26 record":"orig"};
+ "Drafted arms":"arms","Drafted bats":"bats","Draftees '26 WAR":"draft26","Originals '26 record":"oroster"};
 document.getElementById("teampage").addEventListener("click",e=>{
   const s=e.target.closest(".stat");
   if(s){const l=s.querySelector(".sl").textContent.trim();
@@ -903,9 +911,32 @@ function openDrill(kind, t){
     case "late": title=t+" — round 5+ finds"; def=window.HDEFS["Late %"]; body=L(DATA.late[t],r=>({n:r[0],m:r[1]+" · rd "+r[2]+" · pick "+r[3],w:r[4],s:r[5]})); break;
     case "arms": title=t+" — drafted arms"; def=window.HDEFS["Pitch WAR"]; body=L((DATA.abdet[t]||{}).p,r=>({n:r[0],m:"drafted "+r[1],w:r[2],s:r[3]})); break;
     case "bats": title=t+" — drafted bats"; def=window.HDEFS["Bat WAR"]; body=L((DATA.abdet[t]||{}).b,r=>({n:r[0],m:"drafted "+r[1],w:r[2],s:r[3]})); break;
-    case "orig": {const lo=DATA.loyalty.find(x=>x.team===t)||{}; title=t+" — the originals"; def=DEFS["Originals '26 record"]; body='<div class="pcsub" style="font-size:13px">Top current originals: '+(lo.tops||"—")+'. Full standings on the Originals tab.</div>'; break;}
+    case "oroster": {
+      const pool=(DATA.origros[t]||[]).map(r=>({n:r[0],pos:r[1]||"",w:r[2],c:r[3]}));
+      const isP2=p=>["P","SP","RP"].includes(p.pos);
+      const el2=(p,s)=>{if(s==="P")return isP2(p)||p.pos==="TWP";if(s==="OF")return ["OF","LF","CF","RF"].includes(p.pos);if(s==="DH"||s==="BN")return !isP2(p);return p.pos===s||p.pos==="IF"||p.pos==="UT";};
+      const SL=[["C",1],["1B",1],["2B",1],["3B",1],["SS",1],["OF",3],["DH",1],["BN",4],["P",13]];
+      const open={};SL.forEach(([s,n])=>open[s]=n);
+      const picked=[];const used=new Set();
+      for(const p of [...pool].sort((a,b)=>b.w-a.w)){
+        for(const s of ["C","1B","2B","3B","SS","OF","P","DH","BN"]){
+          if(open[s]>0&&el2(p,s)){open[s]--;picked.push({s,p});used.add(p);break;}
+        }
+      }
+      const bySlot={};picked.forEach(x=>{(bySlot[x.s]=bySlot[x.s]||[]).push(x.p);});
+      const W=picked.reduce((s,x)=>s+x.p.w,0);
+      const w162=Math.max(0,Math.min(162,Math.round(47.7+W*162/(DATA.games||109))));
+      const row=(s,p)=>`<div class="lrow" data-pcn="${encodeURIComponent(p.n)}" style="cursor:pointer"><span class="slot">${s}</span><span class="lname"><b>${p.n}</b><br><span class="lmeta">${p.pos||"—"} · career ${p.c}</span></span><span class="lwar">${p.w}</span></div>`;
+      let b26="";
+      SL.forEach(([s])=>{(bySlot[s]||[]).forEach(p=>b26+=row(s,p));
+        for(let i=0;i<(open[s]||0);i++)b26+=`<div class="lrow"><span class="slot">${s}</span><span class="lname lmeta">(no original ${s} active)</span><span class="lwar">—</span></div>`;});
+      const rest=pool.filter(p=>!used.has(p));
+      title=t+" — the originals, best 26";
+      def=`The strongest legal 26-man roster of players whose first organization was ${t}: ${W.toFixed(1)} WAR this season · projected ${w162}\u2013${162-w162}.`;
+      body=b26+(rest.length?`<h3 class="lh">The rest <small>· ${rest.length} more originals</small></h3>`+drillRows(rest.map(p=>({n:p.n,m:(p.pos||"—")+" · career "+p.c,w:p.w}))):"");
+      break;}
   }
-  card.innerHTML=`<button class="pcx" aria-label="Close">\u2715</button>
+  card.innerHTML=`
    <div class="pchead"><span class="pcname" style="font-size:21px">${title}</span></div>
    ${def?`<div class="pcsub" style="margin:4px 0 8px">${def}</div>`:""}
    <div>${body}</div>`;
@@ -916,6 +947,8 @@ document.addEventListener("click",e=>{
   if(s){openDrill(s.dataset.dr, s.dataset.t);return;}
 });
 card.addEventListener("click",e=>{
+  const sb=e.target.closest("[data-sib]");
+  if(sb){openProspect(+sb.dataset.sib);return;}
   const pr=e.target.closest("[data-pcn]");
   if(pr){openCard(decodeURIComponent(pr.dataset.pcn), pr.dataset.hl?+pr.dataset.hl:null);}
 });
@@ -1025,7 +1058,7 @@ $("#cx-lvl").innerHTML='<option value="">All levels</option>'+Object.entries(XL)
 let curRows=[];
 function drawFinder(){
   const o=$("#cx-org").value,l=$("#cx-lvl").value,g=+$("#cx-grp").value,q=$("#cx-q").value.trim().toLowerCase();
-  curRows=X.cur.map((r,i)=>({i,r})).filter(({r})=>r[3]===g&&(!o||r[1]===o)&&(!l||String(r[2])===l)&&(!q||XN[r[0]].toLowerCase().includes(q)));
+  curRows=X.cur.map((r,i)=>({i,r})).filter(({r})=>!r[12]&&r[3]===g&&(!o||r[1]===o)&&(!l||String(r[2])===l)&&(!q||XN[r[0]].toLowerCase().includes(q)));
   curRows.sort((a,b)=>{const x=a.r[9],y=b.r[9];return (y[0]-x[0])||(y[1]-x[1]);});
   $("#cx-count").textContent=curRows.length+" prospects · sorted by projected role, then probability";
   $("#cx-list").innerHTML=curRows.slice(0,120).map(({i,r})=>`<div class="lrow" data-cx="${i}" style="cursor:pointer">
@@ -1051,9 +1084,10 @@ function openProspect(i){
     odds=`<div class="pcsub" style="margin-top:6px">Where his ${hd[2]} matured comps ended up:</div>
      <div class="bars" style="max-width:340px;margin:2px 0 10px">`+seg.map((p,j)=>p>0?`<div class="brow" style="grid-template-columns:26px 1fr 40px"><span>${labs[j]}</span><span class="track"><span class="fill" style="width:${Math.round(p/mx*100)}%"></span></span><span>${p}%</span></div>`:"").join("")+`</div>`;
   } else odds=`Only ${hd[2]} matured comps — profile too unusual for reliable odds.`;
-  card.innerHTML=`<button class="pcx" aria-label="Close">✕</button>
+  card.innerHTML=`
    <div class="pchead"><span class="pcname">${XN[r[0]]}</span><span class="pctot">${headTxt(hd)}</span></div>
    <div class="pcsub">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]}${r[5]<=-10?` · <b>${(-r[5]/10).toFixed(1)} yrs young for level</b>`:""} · ${lineOf(r[3],r[7])}${r[8]?" · early sample":""}</div>
+   ${(r[13]&&r[13].length)?`<div class="pcsub">Also qualified this season: ${r[13].map(si=>`<span class="jump" data-sib="${si}">${XL[X.cur[si][2]]} — ${headTxt(X.cur[si][9])}</span>`).join(" · ")}</div>`:""}
    ${hd[2]>=8?odds:`<div class="pcsub">${odds}</div>`}
    ${comps.map(({hh,sim})=>`<div class="lrow"><span class="lname"><b>${XN[hh[0]]}</b><br><span class="lmeta">${hh[1]} ${XL[hh[2]]} · age ${hh[4]} · ${lineOf(hh[3],hh[7])}</span></span><span class="lmeta">${sim}%</span>${roleChip(hh[8],hh[5],hh[6])}</div>`).join("")}`;
   sheetShown();

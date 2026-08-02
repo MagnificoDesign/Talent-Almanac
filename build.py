@@ -509,6 +509,11 @@ if HFILE:
         H = json.load(f)
     SPORTS = [11, 12, 13, 14]
     LVL = {11: "AAA", 12: "AA", 13: "A+", 14: "A"}
+    hb = {}
+    for r in H["rows"]:
+        k = (r[0], r[2], r[3], r[4])
+        if k not in hb or r[8][0] > hb[k][8][0]: hb[k] = r
+    H["rows"] = list(hb.values())
     def ip_outs(s):
         try:
             a = str(s).split("."); return int(a[0]) * 3 + (int(a[1]) if len(a) > 1 else 0)
@@ -534,8 +539,11 @@ if HFILE:
                                 avg = float(x.get("avg") or 0); slg = float(x.get("slg") or 0)
                                 obp = float(x.get("obp") or 0); ops = float(x.get("ops") or 0)
                             except: continue
+                            sb_=x.get("stolenBases",0) or 0; cs_=x.get("caughtStealing",0) or 0
+                            go_=x.get("groundOuts",0) or 0; ao_=x.get("airOuts",0) or 0
                             out.append(dict(pid=pid, nm=nm, y=year, sp=sp, g=0, lg=lg, age=age,
-                                f=dict(k=so/pa, bb=bb/pa, iso=slg-avg, ops=ops, sb=(x.get("stolenBases",0) or 0)/pa),
+                                f=dict(k=so/pa, bb=bb/pa, iso=slg-avg, ops=ops, sb=sb_/pa,
+                                       sbe=(sb_+3)/(sb_+cs_+6), goa=go_/max(1,ao_)),
                                 disp=[pa, round(avg*1000), round(obp*1000), round(slg*1000), x.get("homeRuns",0) or 0, x.get("stolenBases",0) or 0]))
                         else:
                             bf = x.get("battersFaced", 0) or 0; outs = ip_outs(x.get("inningsPitched", "0"))
@@ -544,12 +552,18 @@ if HFILE:
                             gp = x.get("gamesPitched", x.get("gamesPlayed", 1)) or 1; gs = x.get("gamesStarted", 0) or 0
                             try: era = float(x.get("era") or 0)
                             except: era = 0
+                            go_=x.get("groundOuts",0) or 0; ao_=x.get("airOuts",0) or 0
                             out.append(dict(pid=pid, nm=nm, y=year, sp=sp, g=1, lg=lg, age=age,
-                                f=dict(k=so/bf, bb=bb/bf, hr=(x.get("homeRuns",0) or 0)/bf, era=era, role=gs/gp),
+                                f=dict(k=so/bf, bb=bb/bf, hr=(x.get("homeRuns",0) or 0)/bf, era=era, role=gs/gp,
+                                       hbf=(x.get("hits",0) or 0)/bf, goa=go_/max(1,ao_)),
                                 disp=[round(outs/3*10), gs, so, round(era*100)]))
                     off += 1000
                     if off >= (st.get("totalSplits") or 0): break
-        return out
+        best = {}
+        for r in out:
+            k = (r["pid"], r["g"], r["sp"])
+            if k not in best or r["disp"][0] > best[k]["disp"][0]: best[k] = r
+        return list(best.values())
     def zize(rows):
         coh = collections.defaultdict(list); coh2 = collections.defaultdict(list); ages = collections.defaultdict(list)
         for r in rows:
@@ -594,8 +608,8 @@ if HFILE:
         for t in jget(f"https://statsapi.mlb.com/api/v1/teams?sportId={sp}&season={CUR}").get("teams", []):
             torg[t["id"]] = FRMAP.get(t.get("parentOrgName", ""), "")
     # re-fetch team ids for current rows (stats splits carry team) - fold into fetch: quick second pass via splits not stored; use league-free org from people? keep org via team in fetch:
-    WH = {"bb": 1.0, "iso": 1.2, "k": 1.2, "ops": 1.0, "sb": 0.6}
-    WP = {"bb": 1.1, "era": 0.5, "hr": 0.7, "k": 1.4, "role": 0.8}
+    WH = {"bb": 1.0, "goa": 0.6, "iso": 1.2, "k": 1.2, "ops": 1.0, "sb": 0.5, "sbe": 0.4}
+    WP = {"bb": 1.1, "era": 0.3, "goa": 0.5, "hbf": 0.6, "hr": 0.7, "k": 1.4, "role": 0.8}
     KH = sorted(WH.keys()); KP = sorted(WP.keys())
     hist = [r for r in H["rows"]]
     hby = collections.defaultdict(list)
@@ -654,6 +668,14 @@ if HFILE:
             org = torg.get(ct, "")
             for cr in cur_rows:
                 if cr[12] == p["id"]: cr[1] = org
+    bypid = collections.defaultdict(list)
+    for ci, cr in enumerate(cur_rows): bypid[cr[12]].append(ci)
+    for pid_, idxs in bypid.items():
+        idxs.sort(key=lambda ci: cur_rows[ci][2])
+        for rank, ci in enumerate(idxs):
+            sibs = [x for x in idxs if x != ci]
+            cur_rows[ci].insert(12, sibs)
+            cur_rows[ci].insert(12, 1 if rank else 0)
     hist_out = [None] * len(used_h)
     for i, idx in used_h.items():
         hrow = hist[i]
@@ -714,6 +736,13 @@ for pid, (y, t, pk, nm) in drafted.items():
 for t in TEAMS:
     hits[t].sort(key=lambda r: -r[3])
     for k in abdet[t]: abdet[t][k] = sorted(abdet[t][k], key=lambda r: -r[2])[:40]
+origros = {t: [] for t in TEAMS}
+for m in pids26:
+    o = original_org(m)
+    if o in origros:
+        origros[o].append([names.get(m, str(m)), pos.get(m, ""), S(w26[m]), S(cwALL.get(m, 0.0))])
+for t in TEAMS: origros[t].sort(key=lambda r: -r[2])
+
 geo = collections.defaultdict(list)
 for y, d in draft_json.items():
     for rnd in d["drafts"]["rounds"]:
@@ -741,7 +770,7 @@ data = dict(asof=TODAY.strftime("%B %d, %Y"), games=GAMES, grades=grades, draft=
     busts=dict(rows=brows, counts=dict(bcnt)), roster=dict(rows=roster_rows, counts={t: dict(c) for t, c in rc.items()}),
     detail=detail, deals=deals, late={t: late.get(t, []) for t in TEAMS}, classes=classes,
     positions=positions, refresh=refresh, tid=tid, loyalty=loyalty, market=market, pc=pc, pcteams=TL, pcx=pcx,
-    abdet=abdet, hits=hits, geo=dict(geo))
+    abdet=abdet, hits=hits, geo=dict(geo), origros=origros)
 
 tpl = open("template.html", encoding="utf-8").read()
 html = tpl.replace('<script src="dash_data.js"></script>',
