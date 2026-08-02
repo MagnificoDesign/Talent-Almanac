@@ -85,6 +85,7 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 .tcl{color:var(--sub);font-size:10px}
 .statgrid .stat{cursor:pointer}
 .tp-grade{cursor:pointer}
+.hq{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;background:rgba(255,255,255,.3);font-size:10px;margin-left:4px;cursor:help;font-weight:700}
 /* player search + card */
 .psearchwrap{position:relative;flex:1;min-width:150px}
 #psearch{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)}
@@ -311,6 +312,13 @@ footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid va
   </div>
 </section>
 
+<section id="s-state">
+  <p class="note"><b>Draft value by home state.</b> Every drafted player (2000\u20132025 classes, 0.5+ WAR) grouped by the state he grew up in \u2014 the area scout's territory cut. School shown on each row; HS/COL/JC inferred from age on draft day. The feed doesn't publish school locations, so college products credit their home state, not their campus.</p>
+  <div class="controls"><select id="st-sel" aria-label="State"></select></div>
+  <p class="count" id="st-count"></p>
+  <div class="tbox"><table id="t-state"></table></div>
+</section>
+
 <section id="s-roster">
   <p class="note"><b>All 780 active-roster players, classified by how their club got them</b>, with the WAR each has produced for that club (2015–present, both stints for returnees). Deadline snapshot as of the build; use Refresh to re-pull live rosters — brand-new movers show as "Recent move" until the next full rebuild.</p>
   <div class="controls">
@@ -349,9 +357,10 @@ favSel.onchange=()=>{
    .tchip[data-tm="${t}"]{background:var(--goldbg);border-color:#E3C77E}
    .tchip[data-tm="${t}"] .tct small{color:var(--gold)}`:"";
 };
-const TABS=[["grades","Grades"],["team","Team page"],["ledger","Team ledgers"],["draft","Draft"],["classes","Classes"],
- ["h2h","Head to head"],["acq","Trades & FA"],["net","Net ledger"],["sur","Surplus"],["intl","Intl"],
- ["ab","Arms · Bats"],["late","Late rounds"],["busts","Busts"],["orig","Originals"],["money","Money team"],["comps","Prospect comps"],["roster","Rosters"]];
+const TABS=[["grades","Grades"],["team","Team page"],["roster","Rosters"],["ab","Arms · Bats"],["draft","Draft"],
+ ["classes","Classes"],["late","Late rounds"],["busts","Busts"],["sur","Surplus"],["ledger","Team ledgers"],
+ ["net","Net ledger"],["acq","Trades & FA"],["intl","Intl"],["state","By state"],["comps","Prospect comps"],
+ ["orig","Originals"],["money","Money team"],["h2h","Head to head"]];
 const nav=$("#tabs");
 TABS.forEach(([id,label],i)=>{
   const b=document.createElement("button");
@@ -381,6 +390,57 @@ DATA.grades.forEach((g,i)=>{
   gg.appendChild(d);
 });
 
+window.HDEFS={
+"Team":"Franchise, by its standard three-letter code.",
+"Draft WAR":"Total career WAR produced by players the club drafted in the 2015\u20132024 classes, credited to the drafting club wherever the value was earned. Tap a number for the players.",
+"'26":"The current-season share of the number to its left.",
+"Kept":"Percentage of the club's drafted WAR that was produced while the player was still with the club.",
+"MLB'd":"How many of the club's 2015\u20132024 picks have reached the major leagues. Tap for the list.",
+"5+":"Picks from those classes with at least 5 career WAR. Tap for the players.",
+"10+":"Picks from those classes with at least 10 career WAR. Tap for the players.",
+"Late %":"Share of the club's drafted WAR that came from picks after the top 100. Tap for the late-round finds.",
+"Hit rate":"Percentage of 2015\u20132021 picks that reached the majors. Tap for every hit.",
+"Avg 1st pick":"The club's average first selection slot \u2014 lower means picking earlier.",
+"Trade WAR":"WAR from players acquired in trades since the 2014\u201315 offseason, counted while with the club. Tap for the winning deals.",
+"Lost":"WAR that players the club traded away produced for their new clubs. Tap for the losing deals.",
+"Pre-debut":"Trade WAR from players acquired before their MLB debut.",
+"Estab.":"Trade WAR from players who were already established major leaguers.",
+"FA WAR":"WAR from free-agent signings, counted while with the club. Tap for the signings.",
+"Reclam.":"WAR from players signed to minor-league deals or within about 13 months of being cut. Tap for the list.",
+"Waivers":"WAR from waiver claims. Tap for the claims.",
+"Gained":"WAR produced by players the club acquired in trades. Tap for the winning deals.",
+"Surrendered":"WAR that traded-away players produced elsewhere. Tap for the losing deals.",
+"Net":"Gained minus surrendered \u2014 the trade ledger's bottom line. Tap for every deal.",
+"'26 net":"This season's gained-minus-surrendered.",
+"Costliest players surrendered":"The three traded-away players who produced the most for their new clubs. Tap a name for that specific deal.",
+"Picks":"Number of selections in the 2015\u20132021 classes.",
+"Expected":"WAR an average club produced from the same pick slots.",
+"Actual":"WAR the club actually produced from those slots.",
+"Surplus":"Actual minus expected \u2014 value above draft position.",
+"Per pick":"Surplus divided by number of picks.",
+"Intl WAR":"WAR from international and amateur signings outside the draft (debuts 2015+), credited to the signing club. Tap for the signings.",
+"Top signings":"The club's three most valuable international signings.",
+"Pitch WAR":"Drafted WAR earned as pitchers (2015\u20132024 classes). Tap for the arms.",
+"Bat WAR":"Drafted WAR earned as hitters. Tap for the bats.",
+"'26 P":"Current-season WAR by the club's drafted pitchers.",
+"'26 B":"Current-season WAR by the club's drafted hitters.",
+"Total":"Pitching plus hitting drafted WAR.",
+"% arms":"Share of drafted WAR that came from pitchers.",
+"Player":"Tap any player's name for his season-by-season card.",
+"Year":"Season or transaction year.",
+"Rd":"Draft round.","Pick":"Overall selection number.",
+"WAR":"Career WAR to date (2015\u2013present window).",
+"MLB?":"Whether the player has reached the major leagues.",
+"Pos":"Primary position.",
+"How acquired":"The transaction that brought the player to this club. Trade rows tap through to the deal.",
+"WAR for club":"WAR produced for the current club only, both stints for returnees.",
+"School":"School listed on draft day.",
+"Type":"HS, college, or JC \u2014 inferred from age on draft day.",
+"Drafted by":"The club that drafted him.",
+"2026 WAR (originals)":"This season's WAR produced by players the organization originally drafted or signed, wherever they play now.",
+"Expected record":"Projected 162-game record from that originals WAR.",
+"'15\u2013'26 WAR (originals)":"Era-long WAR by the organization's original players.",
+"Best 2026 originals":"The organization's top original players this season."};
 /* ---------- generic sortable table ---------- */
 function table(el,cols,rows,defKey,desc=true){
   let key=defKey,down=desc;
@@ -391,7 +451,8 @@ function table(el,cols,rows,defKey,desc=true){
       return down?String(y).localeCompare(String(x)):String(x).localeCompare(String(y));
     });
     const maxAbs={};cols.forEach(c=>{if(c.bar)maxAbs[c.k]=Math.max(...rows.map(r=>Math.abs(+r[c.k]||0)),0.1);});
-    el.innerHTML="<thead><tr>"+cols.map(c=>`<th ${c.nosort?'class="nosort"':'tabindex="0"'} data-k="${c.k}">${c.label} <span class="arr">${(!c.nosort&&c.k===key)?(down?"▼":"▲"):""}</span></th>`).join("")+"</tr></thead>"+
+    el.innerHTML="<thead><tr>"+cols.map(c=>{const dl=c.deflbl||c.label;const q=(window.HDEFS&&window.HDEFS[dl])?'<span class="hq">?</span>':"";
+      return `<th ${c.nosort?'class="nosort"':'tabindex="0"'} data-k="${c.k}">${c.label}${q} <span class="arr">${(!c.nosort&&c.k===key)?(down?"▼":"▲"):""}</span></th>`;}).join("")+"</tr></thead>"+
       "<tbody>"+sorted.map(r=>"<tr data-tm=\""+(r.team||"")+"\">"+cols.map(c=>{
         if(c.html)return `<td class="${c.num?"num":""}">${c.html(r)}</td>`;
         let v=r[c.k];let cls=c.num?"num":(c.name?"name":"");
@@ -403,10 +464,13 @@ function table(el,cols,rows,defKey,desc=true){
         }
         return `<td class="${cls}">${v??""}</td>`;
       }).join("")+"</tr>").join("")+"</tbody>";
-    el.querySelectorAll("th").forEach(h=>{
-      if(h.classList.contains("nosort"))return;
-      const go=()=>{const k=h.dataset.k;if(k===key)down=!down;else{key=k;down=true;}render();};
-      h.onclick=go;h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}};
+    el.querySelectorAll("th").forEach((h,ci)=>{
+      const c=cols[ci];
+      const go=(ev)=>{
+        if(ev&&ev.target&&ev.target.closest&&ev.target.closest(".hq")){const dl=c.deflbl||c.label;openDef(dl,window.HDEFS[dl]);return;}
+        if(h.classList.contains("nosort"))return;
+        const k=h.dataset.k;if(k===key)down=!down;else{key=k;down=true;}render();};
+      h.onclick=go;h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go(e);}};
     });
   }
   render();
@@ -426,12 +490,16 @@ function spark(t){
   const bars=v.map((x,i)=>`<rect x="${i*7}" y="${18-Math.max(1,x/mx*18)}" width="5" height="${Math.max(1,x/mx*18)}" fill="${x>0?"#005A9C":"#D3DAD2"}"/>`).join("");
   return `<svg width="70" height="18" viewBox="0 0 70 18" aria-label="class value by year">${bars}</svg>`;
 }
+const dj=(k,dr,extra)=>Object.assign({k,num:1,html:r=>`<span class="jump" data-dr="${dr}" data-t="${r.team}">${r[k]}${extra||""}</span>`});
 const draftCols=[
- {k:"team",label:"Team"},{k:"war",label:"Draft WAR",num:1,bar:1},{k:"d26",label:"'26",num:1},
+ {k:"team",label:"Team"},Object.assign(dj("war","draft"),{label:"Draft WAR",bar:1}),
+ Object.assign(dj("d26","draft26"),{label:"'26"}),
  {k:"spark",label:"'15→'24",nosort:1,html:r=>spark(r.team)},
- {k:"kept",label:"Kept",num:1,pct:1},{k:"mlb",label:"MLB'd",num:1},{k:"w5",label:"5+",num:1},
- {k:"w10",label:"10+",num:1},{k:"late_share",label:"Late %",num:1,pct:1},
- {k:"mlb_rate_m",label:"Hit rate",num:1,pct:1},{k:"avg_first",label:"Avg 1st pick",num:1}];
+ {k:"kept",label:"Kept",num:1,pct:1},Object.assign(dj("mlb","hits"),{label:"MLB'd"}),
+ Object.assign(dj("w5","w5"),{label:"5+"}),Object.assign(dj("w10","w10"),{label:"10+"}),
+ Object.assign(dj("late_share","late","%"),{label:"Late %"}),
+ Object.assign(dj("mlb_rate_m","hits21","%"),{label:"Hit rate"}),
+ {k:"avg_first",label:"Avg 1st pick",num:1}];
 const NOTE_ALL="<b>The draft ledger, 2015–2024 classes.</b> WAR credited to the drafting club wherever it was produced. Tap any header to sort; the sparkline is class value by year, 2015→2024. Hit rate covers the mature 2015–21 classes.";
 const NOTE_REC="<b>Recent form: 2020–2024 classes only.</b> This lens measures <b>early MLB arrival</b> — it favors college-heavy, fast-track clubs and early picks. Clubs whose recent value is still in the minors (deep systems, prep-heavy models) read low here by design; pair it with farm rankings before judging. Hit rate covers 2020–23 picks.";
 function drawDraft(recent){
@@ -537,24 +605,31 @@ function openTeam(team){
 renderTeam();
 
 /* ---------- fixed tables ---------- */
+const netByTeam=Object.fromEntries(DATA.net.map(r=>[r.team,r]));
+const acqRows=DATA.acq.map(r=>({...r,lost:netByTeam[r.team]?netByTeam[r.team].surrendered:0}));
+const drl=(k,dr)=>({k,label:{trade:"Trade WAR",lost:"Lost",fa:"FA WAR",fa_scrap:"Reclam.",waiver:"Waivers"}[k],num:1,
+  html:r=>`<span class="jump" data-dr="${dr}" data-t="${r.team}">${r[k]}</span>`});
 table($("#t-acq"),[
- {k:"team",label:"Team"},{k:"trade",label:"Trade WAR",num:1,bar:1},{k:"trade26",label:"'26",num:1},{k:"trade_milb",label:"Pre-debut",num:1},
- {k:"trade_mlb",label:"Estab.",num:1},{k:"fa",label:"FA WAR",num:1,bar:1},{k:"fa26",label:"'26",num:1},{k:"fa_scrap",label:"Reclam.",num:1},
- {k:"waiver",label:"Waivers",num:1}],DATA.acq,"trade");
+ {k:"team",label:"Team"},Object.assign(drl("trade","deal+"),{bar:1}),{k:"trade26",label:"'26",num:1},
+ drl("lost","deal-"),{k:"trade_milb",label:"Pre-debut",num:1},{k:"trade_mlb",label:"Estab.",num:1},
+ Object.assign(drl("fa","fa"),{bar:1}),{k:"fa26",label:"'26",num:1},drl("fa_scrap","scrap"),
+ drl("waiver","waiver")],acqRows,"trade");
 table($("#t-net"),[
- {k:"team",label:"Team"},{k:"gained",label:"Gained",num:1},{k:"surrendered",label:"Surrendered",num:1},
- {k:"net",label:"Net",num:1,bar:1,signed:1},{k:"net26",label:"'26 net",num:1,signed:1},
- {k:"worst",label:"Costliest players surrendered (tap a name for the deal)",name:1,
+ {k:"team",label:"Team"},{k:"gained",label:"Gained",num:1,html:r=>`<span class="jump" data-dr="deal+" data-t="${r.team}">${r.gained}</span>`},
+ {k:"surrendered",label:"Surrendered",num:1,html:r=>`<span class="jump" data-dr="deal-" data-t="${r.team}">${r.surrendered}</span>`},
+ {k:"net",label:"Net",num:1,bar:1,signed:1,html:r=>`<span class="jump ${r.net>=0?"":""}" data-dr="deal*" data-t="${r.team}"><b class="${r.net>=0?"pos":"neg"}" style="font-weight:600">${r.net}</b></span>`},
+ {k:"net26",label:"'26 net",num:1,signed:1},
+ {k:"worst",label:'Costliest players surrendered<br><small style="font-weight:400;letter-spacing:0">(tap for transactions)</small>',deflbl:"Costliest players surrendered",name:1,
   html:r=>r.worst?r.worst.split("; ").map(p=>{const nm=p.replace(/\s[\d.]+$/,"");return `<span class="jump" data-jn="${encodeURIComponent(nm)}" data-jt="${r.team}">${p}</span>`;}).join("; "):""}],DATA.net,"net");
 table($("#t-sur"),[
  {k:"team",label:"Team"},{k:"picks",label:"Picks",num:1},{k:"expected",label:"Expected",num:1},
  {k:"actual",label:"Actual",num:1},{k:"s26",label:"'26",num:1},{k:"surplus",label:"Surplus",num:1,bar:1,signed:1},
  {k:"per_pick",label:"Per pick",num:1,signed:1}],DATA.surplus,"surplus");
 table($("#t-intl"),[
- {k:"team",label:"Team"},{k:"war",label:"Intl WAR",num:1,bar:1},{k:"i26",label:"'26",num:1},{k:"tops",label:"Top signings",name:1}],DATA.intl,"war");
+ {k:"team",label:"Team"},{k:"war",label:"Intl WAR",num:1,bar:1,html:r=>`<span class="jump" data-dr="intl" data-t="${r.team}">${r.war}</span>`},{k:"i26",label:"'26",num:1},{k:"tops",label:"Top signings",name:1}],DATA.intl,"war");
 const abRows=DATA.armsbats.map(r=>({...r,total:+(r.pitch+r.bat).toFixed(1),armpct:Math.round(100*r.pitch/Math.max(.1,r.pitch+r.bat))}));
 table($("#t-ab"),[
- {k:"team",label:"Team"},{k:"pitch",label:"Pitch WAR",num:1,bar:1},{k:"p26",label:"'26 P",num:1},{k:"bat",label:"Bat WAR",num:1,bar:1},{k:"b26",label:"'26 B",num:1},
+ {k:"team",label:"Team"},{k:"pitch",label:"Pitch WAR",num:1,bar:1,html:r=>`<span class="jump" data-dr="arms" data-t="${r.team}">${r.pitch}</span>`},{k:"p26",label:"'26 P",num:1},{k:"bat",label:"Bat WAR",num:1,bar:1,html:r=>`<span class="jump" data-dr="bats" data-t="${r.team}">${r.bat}</span>`},{k:"b26",label:"'26 B",num:1},
  {k:"total",label:"Total",num:1},{k:"armpct",label:"% arms",num:1,pct:1}],abRows,"total");
 
 /* ---------- originals ---------- */
@@ -729,7 +804,7 @@ sug.addEventListener("click",e=>{
   const b=e.target.closest("button[data-n]"); if(!b)return;
   openCard(decodeURIComponent(b.dataset.n)); sug.hidden=true; ps.blur();
 });
-function openCard(name){
+function openCard(name, hl){
   const entries=PC[name]; if(!entries)return;
   card.innerHTML=`<button class="pcx" aria-label="Close">✕</button>`+entries.map(e=>{
     const [seas,dr]=e;
@@ -739,7 +814,7 @@ function openCard(name){
     const draftLine=dr?`Drafted ${dr[0]} · ${PCT[dr[1]]} · pick ${dr[2]}`:"Never drafted — international / undrafted path";
     return `<div class="pchead"><span class="pcname">${name}</span><span class="pctot">${tot.toFixed(1)} WAR</span></div>
      <div class="pcsub">${draftLine}${entries.length>1?" · one of two players with this name":""}${cur?` · <b>'26: ${(cur[2]/10).toFixed(1)}</b>`:""}</div>
-     <div>${seas.map(r=>`<div class="pcrow${r[0]===26?" cur":""}"><span>${2000+r[0]}</span><span>${PCT[r[1]]}</span><span class="pcbar"><i class="${r[2]<0?"neg":""}" style="width:${Math.round(Math.abs(r[2])/mx*100)}%"></i></span><span class="pcw">${(r[2]/10).toFixed(1)}</span></div>`).join("")}</div>`;
+     <div>${seas.map(r=>`<div class="pcrow${r[0]===26?" cur":""}${hl&&2000+r[0]===hl?" cur":""}"><span>${2000+r[0]}</span><span>${PCT[r[1]]}</span><span class="pcbar"><i class="${r[2]<0?"neg":""}" style="width:${Math.round(Math.abs(r[2])/mx*100)}%"></i></span><span class="pcw">${(r[2]/10).toFixed(1)}</span></div>`).join("")}</div>`;
   }).join('<div style="height:14px"></div>');
   mask.classList.add("on"); card.classList.add("on");
 }
@@ -769,9 +844,14 @@ function openDef(title, body){
    <div class="pcsub" style="font-size:14px;line-height:1.55;margin-top:6px">${body}</div>`;
   mask.classList.add("on");card.classList.add("on");
 }
+const TPD={"Draft WAR":"draft","Surplus vs slot":"draft","Hit rate %":"hits21","Rd 5+ WAR":"late","Net trades":"deal*",
+ "Trade WAR":"trades","FA WAR":"fa","Reclamation":"scrap","Waivers":"waiver","Intl WAR":"intl",
+ "Drafted arms":"arms","Drafted bats":"bats","Draftees '26 WAR":"draft26","Originals '26 record":"orig"};
 document.getElementById("teampage").addEventListener("click",e=>{
   const s=e.target.closest(".stat");
-  if(s){const l=s.querySelector(".sl").textContent.trim();if(DEFS[l]){openDef(l,DEFS[l]);return;}}
+  if(s){const l=s.querySelector(".sl").textContent.trim();
+    if(TPD[l]){openDrill(TPD[l], tpSel.value);return;}
+    if(DEFS[l]){openDef(l,DEFS[l]);return;}}
   if(e.target.closest(".tp-grade"))openDef("Org grade (20\u201380)",DEFS["Org grade (20\u201380)"]);
 });
 $("#a2hs").onclick=()=>{
@@ -780,6 +860,55 @@ $("#a2hs").onclick=()=>{
    ? "You're already running the installed version \u2014 you're all set. To share it, just send someone the page link and have them follow the install steps in their own browser."
    : "<b>iPhone / iPad (Safari):</b> tap the Share button \u2014 the square with the arrow \u2014 then scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.<br><br><b>Android (Chrome):</b> tap the \u22ee menu, then <b>Add to Home screen</b> (or <b>Install app</b>).<br><br>It installs like a real app \u2014 full screen, its own icon, no browser bars \u2014 and it updates itself automatically. No app store needed.");
 };
+
+
+function drillRows(list, fmt, hl){
+  return list.map(r=>`<div class="lrow" data-pcn="${encodeURIComponent(r.n)}"${hl&&r.hl?` data-hl="${r.hl}"`:""} style="cursor:pointer"><span class="lname"><b>${r.n}</b><br><span class="lmeta">${r.m}</span></span>${r.s!==undefined?`<span class="l26">'26&nbsp;${r.s}</span>`:""}<span class="lwar">${r.w}</span></div>`).join("")||'<div class="empty">Nothing in this bucket.</div>';
+}
+function openDrill(kind, t){
+  const D=DATA.detail[t]||{};
+  let title="", body="", def="";
+  const deals=(sign)=>{
+    const my=DATA.deals.map((d,i)=>({d,i})).filter(x=>x.d[1]===t||x.d[2]===t)
+      .map(x=>dealHTML(t,x.d,x.i,"dr")).filter(x=>sign==="*"||(sign==="+"?x.net>=0:x.net<0))
+      .sort((a,b)=>sign==="-"?a.net-b.net:b.net-a.net);
+    return my.length?my.map(x=>x.html).join(""):'<div class="empty">No qualifying deals.</div>';
+  };
+  const L=(arr,mf)=>drillRows((arr||[]).map(mf));
+  switch(kind){
+    case "deal+": title=t+" — trades won"; body=deals("+"); break;
+    case "deal-": title=t+" — trades lost"; body=deals("-"); break;
+    case "deal*": title=t+" — every deal"; body=deals("*"); break;
+    case "fa": title=t+" — free-agent signings (0.5+ WAR)"; def=window.HDEFS["FA WAR"]; body=L(D.fa,r=>({n:r.n,m:"signed "+r.y,w:r.w,s:r.s})); break;
+    case "scrap": title=t+" — reclamation finds"; def="Signed to minor-league deals or within ~13 months of being cut. Tap a player to see his card with the season before the club signed him highlighted."; body=drillRows((D.scrap||[]).map(r=>({n:r.n,m:"signed "+r.y,w:r.w,s:r.s,hl:(+r.y-1)})),null,true); break;
+    case "waiver": title=t+" — waiver claims"; def=window.HDEFS["Waivers"]; body=L(D.waiver,r=>({n:r.n,m:r.y+(r.f?" · from "+r.f:""),w:r.w,s:r.s})); break;
+    case "intl": title=t+" — international & amateur signings"; def=window.HDEFS["Intl WAR"]; body=L(D.intl,r=>({n:r.n,m:r.y,w:r.w,s:r.s})); break;
+    case "trades": title=t+" — trade pickups"; body=L([...(D.tr_pre||[]),...(D.tr_mlb||[])].sort((a,b)=>b.w-a.w),r=>({n:r.n,m:r.y+(r.f?" · from "+r.f:""),w:r.w,s:r.s})); break;
+    case "draft": title=t+" — drafted value (2+ WAR)"; def=window.HDEFS["Draft WAR"]; body=L(D.draft,r=>({n:r.n,m:r.y+" · pick "+r.pk,w:r.w,s:r.s})); break;
+    case "draft26": title=t+" — draftees producing this season"; body=L([...(D.draft||[])].sort((a,b)=>(b.s||0)-(a.s||0)).filter(r=>r.s>0),r=>({n:r.n,m:r.y+" · pick "+r.pk,w:r.w,s:r.s})); break;
+    case "hits": title=t+" — every pick that reached MLB ('15–'24)"; body=L(DATA.hits[t],r=>({n:r[0],m:r[1]+" · pick "+r[2],w:r[3],s:r[4]})); break;
+    case "hits21": title=t+" — hits from the mature classes"; def=window.HDEFS["Hit rate"]; body=L((DATA.hits[t]||[]).filter(r=>r[1]<=2021),r=>({n:r[0],m:r[1]+" · pick "+r[2],w:r[3],s:r[4]})); break;
+    case "w5": title=t+" — 5+ WAR picks"; body=L((D.draft||[]).filter(r=>r.w>=5),r=>({n:r.n,m:r.y+" · pick "+r.pk,w:r.w,s:r.s})); break;
+    case "w10": title=t+" — 10+ WAR picks"; body=L((D.draft||[]).filter(r=>r.w>=10),r=>({n:r.n,m:r.y+" · pick "+r.pk,w:r.w,s:r.s})); break;
+    case "late": title=t+" — round 5+ finds"; def=window.HDEFS["Late %"]; body=L(DATA.late[t],r=>({n:r[0],m:r[1]+" · rd "+r[2]+" · pick "+r[3],w:r[4],s:r[5]})); break;
+    case "arms": title=t+" — drafted arms"; def=window.HDEFS["Pitch WAR"]; body=L((DATA.abdet[t]||{}).p,r=>({n:r[0],m:"drafted "+r[1],w:r[2],s:r[3]})); break;
+    case "bats": title=t+" — drafted bats"; def=window.HDEFS["Bat WAR"]; body=L((DATA.abdet[t]||{}).b,r=>({n:r[0],m:"drafted "+r[1],w:r[2],s:r[3]})); break;
+    case "orig": {const lo=DATA.loyalty.find(x=>x.team===t)||{}; title=t+" — the originals"; def=DEFS["Originals '26 record"]; body='<div class="pcsub" style="font-size:13px">Top current originals: '+(lo.tops||"—")+'. Full standings on the Originals tab.</div>'; break;}
+  }
+  card.innerHTML=`<button class="pcx" aria-label="Close">\u2715</button>
+   <div class="pchead"><span class="pcname" style="font-size:21px">${title}</span></div>
+   ${def?`<div class="pcsub" style="margin:4px 0 8px">${def}</div>`:""}
+   <div>${body}</div>`;
+  mask.classList.add("on");card.classList.add("on");
+}
+document.addEventListener("click",e=>{
+  const s=e.target.closest("[data-dr]");
+  if(s){openDrill(s.dataset.dr, s.dataset.t);return;}
+});
+card.addEventListener("click",e=>{
+  const pr=e.target.closest("[data-pcn]");
+  if(pr){openCard(decodeURIComponent(pr.dataset.pcn), pr.dataset.hl?+pr.dataset.hl:null);}
+});
 // universal name taps
 document.addEventListener("click",e=>{
   if(e.target.closest(".jump")||e.target.closest(".lrow[data-jn]")||e.target.closest("#psuggest")||e.target.closest("#pcard"))return;
@@ -788,6 +917,22 @@ document.addEventListener("click",e=>{
   const nm=el.textContent.replace(/\s*↻\s*$/,"").trim();
   if(PC[nm]) openCard(nm);
 });
+
+/* ---------- by state ---------- */
+{
+const G=DATA.geo||{};
+const totals=Object.entries(G).map(([st,rows])=>[st,+(rows.reduce((s,r)=>s+r[4],0)).toFixed(1)]).sort((a,b)=>b[1]-a[1]);
+$("#st-sel").innerHTML=totals.map(([st,tot])=>`<option value="${st}">${st} · ${tot} WAR</option>`).join("");
+function drawState(){
+  const st=$("#st-sel").value, rows=(G[st]||[]).map(r=>({name:r[0],year:r[1],school:r[2]||"—",type:r[3]||"—",club:r[6],war:r[4],w26:r[5]}));
+  $("#st-count").textContent=st+": "+rows.length+" drafted players at 0.5+ WAR · "+rows.reduce((s,r)=>s+r.war,0).toFixed(1)+" WAR";
+  table($("#t-state"),[
+   {k:"name",label:"Player",name:1},{k:"year",label:"Year",num:1},{k:"school",label:"School",name:1},
+   {k:"type",label:"Type"},{k:"club",label:"Drafted by"},{k:"war",label:"WAR",num:1,bar:1},{k:"w26",label:"'26",num:1}],rows,"war");
+}
+$("#st-sel").onchange=drawState;
+if(totals.length)drawState();
+}
 
 /* ---------- money team ---------- */
 (function(){

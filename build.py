@@ -487,6 +487,20 @@ market = sorted(([names.get(pid, str(pid)), pos.get(pid, ""), sal.get(pid, MINSA
 import gzip, statistics, math, os
 cwALL = collections.Counter()
 for (m, y, fr), w in allrows.items(): cwALL[m] += w
+f6 = collections.Counter()
+for (m, y, fr), w in allrows.items():
+    d0 = debut.get(m, 9999)
+    if d0 <= y <= d0 + 5: f6[m] += w
+def role_of(pid):
+    if pid not in cwALL: return 2
+    w = f6.get(pid, 0.0)
+    if w >= 25: return 8
+    if w >= 16: return 7
+    if w >= 10: return 6
+    if w >= 6: return 5
+    if w >= 2.5: return 4
+    if w >= 0.5: return 3
+    return 2
 
 pcx = None
 HFILE = next((f for f in ("milb_history.json.gz", "milb_history.json.gz.json", "milb history.json.gz") if os.path.exists(f)), None)
@@ -612,32 +626,44 @@ if HFILE:
         for d, i in best[:12]:
             if i not in used_h: used_h[i] = len(used_h)
             comps.append([used_h[i], max(1, round(100 - math.sqrt(d) * 22))])
-        # upside from matured comps
-        num = den = 0.0; nmat = 0
-        for (d, i) in best[:12]:
+        # matured cohort of up to 25 for the role ladder
+        mat_roles = []
+        for (d, i) in best[:60]:
             hrow = hist[i]
-            if hrow[2] <= CUR - 5:
-                w = 1.0 / (0.3 + d); num += w * max(0.0, cwALL.get(hrow[0], 0.0)); den += w; nmat += 1
-        up = round(num / den * 10) if nmat >= 3 else -1
+            if hrow[2] <= CUR - 6:
+                mat_roles.append(role_of(hrow[0]))
+                if len(mat_roles) >= 25: break
+        n = len(mat_roles)
+        ladder = []
+        if n:
+            for rr in (8, 7, 6, 5, 4, 3):
+                ladder.append(round(100 * sum(1 for x in mat_roles if x >= rr) / n))
+        head = [0, 0, n]
+        if n >= 8:
+            for rr, pct in zip((8, 7, 6, 5, 4, 3), ladder):
+                if pct >= 26:
+                    head = [rr, pct, n]; break
+            else:
+                head = [3, ladder[5], n]
         flag = 1 if (r["disp"][0] < 160 if r["g"] == 0 else r["disp"][0] < 1350) else 0
-        cur_rows.append([NI2(r["nm"]), "", r["sp"], r["g"], r["age"], r["ad"], cpos.get(r["pid"], ""), r["disp"], flag, up, comps, r["pid"]])
+        cur_rows.append([NI2(r["nm"]), "", r["sp"], r["g"], r["age"], r["ad"], cpos.get(r["pid"], ""), r["disp"], flag, head, comps, ladder, r["pid"]])
     # orgs: need team per current player - fetch rosters? use statsapi people currentTeam
     for i in range(0, len(cpids), 100):
         for p in jget("https://statsapi.mlb.com/api/v1/people?personIds=" + ",".join(map(str, cpids[i:i+100])) + "&hydrate=currentTeam").get("people", []):
             ct = (p.get("currentTeam") or {}).get("id")
             org = torg.get(ct, "")
             for cr in cur_rows:
-                if cr[11] == p["id"]: cr[1] = org
+                if cr[12] == p["id"]: cr[1] = org
     hist_out = [None] * len(used_h)
     for i, idx in used_h.items():
         hrow = hist[i]
-        hist_out[idx] = [hrow[1], hrow[2], hrow[3], hrow[4], hrow[5], round(max(-9.9, cwALL.get(hrow[0], 0.0)) * 10),
-                         1 if hrow[2] <= CUR - 5 else 0, hrow[8], 1 if hrow[0] in cwALL else 0, hrow[0]]
+        hist_out[idx] = [hrow[1], hrow[2], hrow[3], hrow[4], hrow[5], round(max(-9.9, f6.get(hrow[0], 0.0)) * 10),
+                         1 if hrow[2] <= CUR - 6 else 0, hrow[8], role_of(hrow[0]), hrow[0]]
     stars = collections.defaultdict(list)
     for ci, cr in enumerate(cur_rows):
         for hi, sim in cr[10]:
             hp = hist_out[hi]
-            if cwALL.get(hp[9], 0.0) >= 12:
+            if hp[8] >= 6 and hp[7]:
                 stars[hp[0]].append([ci, sim])
     stars = {names2[k] if isinstance(k, int) else k: sorted(v, key=lambda x: -x[1])[:10] for k, v in stars.items()}
     for cr in cur_rows: cr.pop()  # drop pid
@@ -672,12 +698,50 @@ for m, se in persea.items():
     dr = drafted.get(m)
     pc[nm].append([lines, [dr[0], TI[dr[1]], dr[2]] if dr else 0])
 
+
+# ---------------- drill payloads ----------------
+abdet = {t: dict(p=[], b=[]) for t in TEAMS}
+hits = {t: [] for t in TEAMS}
+for pid, (y, t, pk, nm) in drafted.items():
+    if not (2015 <= y <= OUT_END): continue
+    nmm = names.get(pid, nm) or nm
+    wp = max(0.0, cw.get(pid, 0.0))
+    if pid in mlbset:
+        hits[t].append([nmm, y, pk, S(wp), S(w26.get(pid, 0.0))])
+    if wp >= 0.5:
+        is_p = max(0.0, cw_p.get(pid, 0.0)) >= wp / 2
+        abdet[t]["p" if is_p else "b"].append([nmm, y, S(wp), S(w26.get(pid, 0.0))])
+for t in TEAMS:
+    hits[t].sort(key=lambda r: -r[3])
+    for k in abdet[t]: abdet[t][k] = sorted(abdet[t][k], key=lambda r: -r[2])[:40]
+geo = collections.defaultdict(list)
+for y, d in draft_json.items():
+    for rnd in d["drafts"]["rounds"]:
+        for p in rnd.get("picks", []):
+            if p.get("isPass"): continue
+            per = p.get("person") or {}; pid = per.get("id")
+            if not pid or drafted.get(pid, (0,))[0] != y: continue
+            st = per.get("birthStateProvince", "")
+            if not st or per.get("birthCountry") not in ("USA", "Puerto Rico"): continue
+            wp = max(0.0, cw.get(pid, 0.0))
+            if wp < 0.5: continue
+            typ = ""
+            try:
+                bd = per.get("birthDate", ""); bdt = datetime.date(*map(int, bd.split("-")))
+                age = (datetime.date(y, 7, 15) - bdt).days / 365.25
+                typ = "HS" if age < 19.4 else ("COL" if age >= 20.4 else "JC")
+            except Exception: pass
+            geo[st].append([names.get(pid, "") or per.get("fullName", ""), y,
+                            (p.get("school") or {}).get("name", ""), typ, S(wp), S(w26.get(pid, 0.0)), drafted[pid][1]])
+for st in geo: geo[st] = sorted(geo[st], key=lambda r: -r[4])[:250]
+
 # ---------------- bundle + render ----------------
 data = dict(asof=TODAY.strftime("%B %d, %Y"), games=GAMES, grades=grades, draft=draftT, recent=recent,
     acq=acq_out, net=net, surplus=surplus, intl=intl_out, armsbats=armsbats,
     busts=dict(rows=brows, counts=dict(bcnt)), roster=dict(rows=roster_rows, counts={t: dict(c) for t, c in rc.items()}),
     detail=detail, deals=deals, late={t: late.get(t, []) for t in TEAMS}, classes=classes,
-    positions=positions, refresh=refresh, tid=tid, loyalty=loyalty, market=market, pc=pc, pcteams=TL, pcx=pcx)
+    positions=positions, refresh=refresh, tid=tid, loyalty=loyalty, market=market, pc=pc, pcteams=TL, pcx=pcx,
+    abdet=abdet, hits=hits, geo=dict(geo))
 
 tpl = open("template.html", encoding="utf-8").read()
 html = tpl.replace('<script src="dash_data.js"></script>',
