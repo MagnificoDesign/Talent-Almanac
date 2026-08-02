@@ -618,7 +618,7 @@ table($("#t-acq"),[
 table($("#t-net"),[
  {k:"team",label:"Team"},{k:"gained",label:"Gained",num:1,html:r=>`<span class="jump" data-dr="deal+" data-t="${r.team}">${r.gained}</span>`},
  {k:"surrendered",label:"Surrendered",num:1,html:r=>`<span class="jump" data-dr="deal-" data-t="${r.team}">${r.surrendered}</span>`},
- {k:"net",label:"Net",num:1,bar:1,signed:1,html:r=>`<span class="jump ${r.net>=0?"":""}" data-dr="deal*" data-t="${r.team}"><b class="${r.net>=0?"pos":"neg"}" style="font-weight:600">${r.net}</b></span>`},
+ {k:"net",label:"Net",num:1,bar:1,signed:1,html:r=>`<span class="jump ${r.net>=0?"":""}" data-dr="${r.net>=0?"deal+":"deal-"}" data-t="${r.team}"><b class="${r.net>=0?"pos":"neg"}" style="font-weight:600">${r.net}</b></span>`},
  {k:"net26",label:"'26 net",num:1,signed:1},
  {k:"worst",label:'Costliest players surrendered<br><small style="font-weight:400;letter-spacing:0">(tap for transactions)</small>',deflbl:"Costliest players surrendered",name:1,
   html:r=>r.worst?r.worst.split("; ").map(p=>{const nm=p.replace(/\s[\d.]+$/,"");return `<span class="jump" data-jn="${encodeURIComponent(nm)}" data-jt="${r.team}">${p}</span>`;}).join("; "):""}],DATA.net,"net");
@@ -859,6 +859,7 @@ const TPD={"Draft WAR":"draft","Surplus vs slot":"draft","Hit rate %":"hits21","
 document.getElementById("teampage").addEventListener("click",e=>{
   const s=e.target.closest(".stat");
   if(s){const l=s.querySelector(".sl").textContent.trim();
+    if(l==="Net trades"){const nv=(DATA.net.find(x=>x.team===tpSel.value)||{}).net||0;openDrill(nv>=0?"deal+":"deal-", tpSel.value);return;}
     if(TPD[l]){openDrill(TPD[l], tpSel.value);return;}
     if(DEFS[l]){openDef(l,DEFS[l]);return;}}
   if(e.target.closest(".tp-grade"))openDef("Org grade (20\u201380)",DEFS["Org grade (20\u201380)"]);
