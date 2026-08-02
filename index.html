@@ -83,6 +83,8 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 .tct{font-family:var(--disp);font-weight:800;font-size:18px;display:flex;justify-content:space-between;align-items:baseline}
 .tct small{font-size:15px;color:var(--blue)}
 .tcl{color:var(--sub);font-size:10px}
+.statgrid .stat{cursor:pointer}
+.tp-grade{cursor:pointer}
 /* player search + card */
 .psearchwrap{position:relative;flex:1;min-width:150px}
 #psearch{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)}
@@ -183,6 +185,7 @@ footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid va
 <nav id="tabs" role="tablist"></nav>
 
 <section id="s-grades">
+  <div style="display:flex;justify-content:flex-end;margin:2px 0 4px"><button class="btn" id="a2hs" style="font-size:12px;padding:6px 10px">📲 How to add to Home Screen</button></div>
   <p class="note"><b>Organizational grades on the scout's 20–80 scale.</b> Composite of the money-neutral channels only — draft surplus over slot, net trade ledger, international/amateur pipeline, reclamation signings, and waiver claims. Free-agent spending is deliberately excluded: this grades finding, not buying. Tap any card for its full player-by-player ledger. Micro-bars: <b>D</b>raft · <b>T</b>rades · <b>I</b>ntl · <b>R</b>eclamation · <b>W</b>aivers percentiles.</p>
   <div class="grid" id="ggrid"></div>
 </section>
@@ -740,6 +743,39 @@ function closeCard(){mask.classList.remove("on");card.classList.remove("on");}
 mask.onclick=closeCard;
 card.addEventListener("click",e=>{ if(e.target.closest(".pcx")) closeCard(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeCard(); });
+const DEFS={
+"Org grade (20\u201380)":"Overall talent-finding grade on the 20\u201380 scouting scale. Combines five channels: draft surplus vs slot, net trades, international signings, reclamation signings, and waiver claims. Free-agent spending is excluded.",
+"Draft WAR":"Total career WAR produced by players this club drafted in the 2015\u20132024 classes, credited to the drafting club regardless of where the value was earned.",
+"Surplus vs slot":"Actual WAR from the club's 2015\u20132021 draft classes minus the WAR that average clubs produced from the same pick slots.",
+"Hit rate %":"Percentage of the club's 2015\u20132021 draft picks that reached the major leagues.",
+"Rd 5+ WAR":"Career WAR produced by the club's draft picks taken in round 5 or later.",
+"Net trades":"WAR gained from players acquired in trades, minus the WAR that players traded away produced for their new clubs.",
+"Trade WAR":"Total WAR from players acquired in trades since the 2014\u201315 offseason, counted only while with the club.",
+"FA WAR":"WAR from free-agent signings, counted while with the club.",
+"Reclamation":"WAR from players signed to minor-league deals, or signed within about 13 months of being released, non-tendered, or otherwise cut.",
+"Waivers":"WAR from players acquired on waiver claims.",
+"Intl WAR":"WAR from international and amateur signings outside the draft (players who debuted in 2015 or later), credited to the signing club.",
+"Drafted arms":"WAR from the club's 2015\u20132024 draft picks earned as pitchers.",
+"Drafted bats":"WAR from the club's 2015\u20132024 draft picks earned as hitters.",
+"Draftees '26 WAR":"WAR that the club's 2015\u20132024 draftees are producing this season, for any team.",
+"Originals '26 record":"Projected record if every player were still with the organization that first drafted or signed him."};
+function openDef(title, body){
+  card.innerHTML=`<button class="pcx" aria-label="Close">\u2715</button>
+   <div class="pchead"><span class="pcname" style="font-size:22px">${title}</span></div>
+   <div class="pcsub" style="font-size:14px;line-height:1.55;margin-top:6px">${body}</div>`;
+  mask.classList.add("on");card.classList.add("on");
+}
+document.getElementById("teampage").addEventListener("click",e=>{
+  const s=e.target.closest(".stat");
+  if(s){const l=s.querySelector(".sl").textContent.trim();if(DEFS[l]){openDef(l,DEFS[l]);return;}}
+  if(e.target.closest(".tp-grade"))openDef("Org grade (20\u201380)",DEFS["Org grade (20\u201380)"]);
+});
+$("#a2hs").onclick=()=>{
+  const standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone;
+  openDef("Add to Home Screen", standalone
+   ? "You're already running the installed version \u2014 you're all set. To share it, just send someone the page link and have them follow the install steps in their own browser."
+   : "<b>iPhone / iPad (Safari):</b> tap the Share button \u2014 the square with the arrow \u2014 then scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.<br><br><b>Android (Chrome):</b> tap the \u22ee menu, then <b>Add to Home screen</b> (or <b>Install app</b>).<br><br>It installs like a real app \u2014 full screen, its own icon, no browser bars \u2014 and it updates itself automatically. No app store needed.");
+};
 // universal name taps
 document.addEventListener("click",e=>{
   if(e.target.closest(".jump")||e.target.closest(".lrow[data-jn]")||e.target.closest("#psuggest")||e.target.closest("#pcard"))return;
