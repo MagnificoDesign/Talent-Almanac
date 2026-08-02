@@ -290,7 +290,7 @@ footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid va
 
 <section id="s-comps">
   <p class="note"><b>Prospect comps.</b> Every qualified minor leaguer this season, matched against twenty seasons of same-level history by statistical shape — K%, BB%, power, production, speed, all normalized within league-season — with <b>age versus level</b> weighted heaviest. Each comp is scored on WAR through his first six MLB seasons and mapped to the 2–8 role scale (R8 elite · R7 frequent All-Star · R6 occasional All-Star · R5 solid everyday or mid-rotation · R4 role player · R3 up-and-down · R2 organizational). A prospect's projection comes from his 25 nearest matured comps (seasons through __MAT__, so their six years are in): the grade is the highest role at least 26% of the cohort reached, tagged Poor (0–25) · Fair (26–49) · Good (50–74) · Excellent (75–100) by that probability. This is a triage tool built from public stat lines: it can't see swings, defense, makeup, or medicals — it points eyes and quantifies priors.</p>
-  <div class="seg" role="group"><button id="cm-find" aria-pressed="true">Prospect finder</button><button id="cm-star" aria-pressed="false">Star lookup</button></div>
+  <div class="seg" role="group"><button id="cm-find" aria-pressed="true">Prospect finder</button><button id="cm-star" aria-pressed="false">MLB finder</button></div>
   <div id="cm-a">
     <div class="controls">
       <select id="cx-org"></select><select id="cx-lvl"></select><select id="cx-grp"><option value="0">Hitters</option><option value="1">Pitchers</option></select>
@@ -301,9 +301,13 @@ footer{margin-top:26px;color:var(--sub);font-size:11.5px;border-top:1px solid va
     <div class="lbox" id="cx-list"></div>
   </div>
   <div id="cm-b" style="display:none">
-    <div class="controls"><select id="cx-starsel"></select></div>
-    <p class="count">Current prospects whose season most resembles this player's minor-league profile:</p>
-    <div class="lbox" id="cx-starlist"></div>
+    <div class="controls"><select id="cx-mteam"></select><input id="cx-mq" type="search" placeholder="Search any MLB player…"></div>
+    <p class="count" id="cx-mcount"></p>
+    <div id="cx-matchwrap" style="display:none">
+      <h3 class="lh" id="cx-matchhead"></h3>
+      <div class="lbox" id="cx-starlist" style="margin-bottom:14px"></div>
+    </div>
+    <div class="lbox" id="cx-mlblist"></div>
   </div>
 </section>
 
@@ -899,20 +903,32 @@ function openProspect(i){
    ${comps.map(({hh,sim})=>`<div class="lrow"><span class="lname"><b>${XN[hh[0]]}</b><br><span class="lmeta">${hh[1]} ${XL[hh[2]]} · age ${hh[4]} · ${lineOf(hh[3],hh[7])}</span></span><span class="lmeta">${sim}%</span>${roleChip(hh[8],hh[5],hh[6])}</div>`).join("")}`;
   mask.classList.add("on");card.classList.add("on");
 }
-// star lookup
-const starNames=Object.keys(X.stars).map(k=>isNaN(+k)?k:XN[+k]).sort();
-const starKey={};Object.keys(X.stars).forEach(k=>starKey[isNaN(+k)?k:XN[+k]]=k);
-$("#cx-starsel").innerHTML=starNames.map(n=>`<option>${n}</option>`).join("");
-function drawStar(){
-  const k=starKey[$("#cx-starsel").value];
-  const list=X.stars[k]||[];
-  $("#cx-starlist").innerHTML=list.map(([ci,sim])=>{const r=X.cur[ci];
-    return `<div class="lrow" data-cx="${ci}" style="cursor:pointer"><span class="lname"><b>${XN[r[0]]}</b><br><span class="lmeta">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]} · ${lineOf(r[3],r[7])}</span></span><span class="lwar">${sim}%</span></div>`;}).join("")||'<div class="empty">No current matches.</div>';
+// MLB finder
+const careerOf=n=>{const es=PC[n];if(!es)return 0;let best=0;
+  for(const e of es){const tot=e[0].reduce((s,r)=>s+r[2],0)/10;if(tot>best)best=tot;}
+  return best;};
+const MLB=DATA.roster.rows.map(r=>({n:r.player,t:r.team,pos:r.pos,w:careerOf(r.player)}));
+$("#cx-mteam").innerHTML='<option value="">All teams</option>'+[...new Set(MLB.map(m=>m.t))].sort().map(t=>`<option>${t}</option>`).join("");
+function drawMLB(){
+  const t=$("#cx-mteam").value,q=$("#cx-mq").value.trim().toLowerCase();
+  const rows=MLB.filter(m=>(!t||m.t===t)&&(!q||m.n.toLowerCase().includes(q))).sort((a,b)=>b.w-a.w).slice(0,150);
+  $("#cx-mcount").textContent=rows.length+" MLB players · sorted by career WAR · tap one to find prospects who profile like his minor-league seasons";
+  $("#cx-mlblist").innerHTML=rows.map(m=>`<div class="lrow" data-mn="${encodeURIComponent(m.n)}" style="cursor:pointer"><span class="lname"><b>${m.n}</b><br><span class="lmeta">${m.t} · ${m.pos}</span></span><span class="lwar">${m.w.toFixed(1)}</span></div>`).join("")||'<div class="empty">No players match.</div>';
 }
-$("#cx-starsel").onchange=drawStar;
-$("#cx-starlist").addEventListener("click",e=>{const row=e.target.closest("[data-cx]");if(row)openProspect(+row.dataset.cx);});
+$("#cx-mteam").onchange=drawMLB;$("#cx-mq").oninput=drawMLB;
+$("#cx-mlblist").addEventListener("click",e=>{
+  const row=e.target.closest("[data-mn]");if(!row)return;
+  const n=decodeURIComponent(row.dataset.mn);
+  const list=X.stars[n]||[];
+  $("#cx-matchwrap").style.display="";
+  $("#cx-matchhead").textContent="Prospects who profile like "+n+"'s minor-league seasons";
+  $("#cx-starlist").innerHTML=list.length?list.map(([ci,sim])=>{const r=X.cur[ci];
+    return `<div class="lrow" data-cx="${ci}" style="cursor:pointer"><span class="lname"><b>${XN[r[0]]}</b><br><span class="lmeta">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]} · ${lineOf(r[3],r[7])}</span></span><span class="lwar">${sim}%</span></div>`;}).join("")
+   :'<div class="empty">No close current matches — no prospect profiles near his minor-league seasons, or his minor-league career predates the 2006+ history window.</div>';
+  window.scrollTo({top:document.getElementById("cx-matchwrap").offsetTop-70,behavior:"smooth"});
+});
 $("#cm-find").onclick=()=>{$("#cm-a").style.display="";$("#cm-b").style.display="none";$("#cm-find").setAttribute("aria-pressed",true);$("#cm-star").setAttribute("aria-pressed",false);};
-$("#cm-star").onclick=()=>{$("#cm-a").style.display="none";$("#cm-b").style.display="";$("#cm-find").setAttribute("aria-pressed",false);$("#cm-star").setAttribute("aria-pressed",true);drawStar();};
+$("#cm-star").onclick=()=>{$("#cm-a").style.display="none";$("#cm-b").style.display="";$("#cm-find").setAttribute("aria-pressed",false);$("#cm-star").setAttribute("aria-pressed",true);drawMLB();};
 $("#cx-csv").onclick=()=>{
   const rows=[["Player","Org","Level","Age","Pos","Line","Projection","P>=R6","P>=R5","P>=R4","TopComp"]];
   curRows.forEach(({r})=>{const c=r[10][0];const hh=c?X.hist[c[0]]:null;const lad=r[11]||[];
