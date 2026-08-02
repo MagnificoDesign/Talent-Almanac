@@ -107,6 +107,7 @@ td.pos{color:var(--pos);font-weight:600}td.neg{color:var(--neg);font-weight:600}
 .pcbar i{display:block;height:100%;background:var(--blue)}
 .pcbar i.neg{background:var(--neg)}
 .pcw{text-align:right;font-weight:700}
+.pcx.pback{float:left}
 .pcx{position:sticky;top:0;float:right;font:inherit;border:1px solid var(--line);background:var(--card);border-radius:999px;width:34px;height:34px;font-size:16px}
 .namebtn{cursor:pointer}
 /* money team + dual war */
@@ -357,10 +358,10 @@ favSel.onchange=()=>{
    .tchip[data-tm="${t}"]{background:var(--goldbg);border-color:#E3C77E}
    .tchip[data-tm="${t}"] .tct small{color:var(--gold)}`:"";
 };
-const TABS=[["grades","Grades"],["team","Team page"],["roster","Rosters"],["ab","Arms · Bats"],["draft","Draft"],
- ["classes","Classes"],["late","Late rounds"],["busts","Busts"],["sur","Surplus"],["ledger","Team ledgers"],
- ["net","Net ledger"],["acq","Trades & FA"],["intl","Intl"],["state","By state"],["comps","Prospect comps"],
- ["orig","Originals"],["money","Money team"],["h2h","Head to head"]];
+const TABS=[["grades","Team grades"],["h2h","Head to head"],["team","Team page"],["roster","Rosters"],["ab","Arms · Bats"],
+ ["draft","Draft"],["classes","Classes"],["late","Late rounds"],["busts","Busts"],["sur","Surplus"],
+ ["ledger","Team ledgers"],["net","Net ledger"],["acq","Trades & FA"],["intl","Intl"],["state","By state"],
+ ["comps","Prospect comps"],["orig","Originals"],["money","Money team"]];
 const nav=$("#tabs");
 TABS.forEach(([id,label],i)=>{
   const b=document.createElement("button");
@@ -816,11 +817,19 @@ function openCard(name, hl){
      <div class="pcsub">${draftLine}${entries.length>1?" · one of two players with this name":""}${cur?` · <b>'26: ${(cur[2]/10).toFixed(1)}</b>`:""}</div>
      <div>${seas.map(r=>`<div class="pcrow${r[0]===26?" cur":""}${hl&&2000+r[0]===hl?" cur":""}"><span>${2000+r[0]}</span><span>${PCT[r[1]]}</span><span class="pcbar"><i class="${r[2]<0?"neg":""}" style="width:${Math.round(Math.abs(r[2])/mx*100)}%"></i></span><span class="pcw">${(r[2]/10).toFixed(1)}</span></div>`).join("")}</div>`;
   }).join('<div style="height:14px"></div>');
-  mask.classList.add("on"); card.classList.add("on");
+  sheetShown();
 }
-function closeCard(){mask.classList.remove("on");card.classList.remove("on");}
+let SS=[];const PBACK='<button class="pcx pback" aria-label="Back">\u2190</button>';
+function sheetShown(){
+  if(!card.classList.contains("on"))SS=[];
+  SS.push(card.innerHTML);
+  if(SS.length>1)card.insertAdjacentHTML("afterbegin",PBACK);
+  mask.classList.add("on");card.classList.add("on");
+}
+function closeCard(){SS=[];mask.classList.remove("on");card.classList.remove("on");}
 mask.onclick=closeCard;
-card.addEventListener("click",e=>{ if(e.target.closest(".pcx")) closeCard(); });
+card.addEventListener("click",e=>{ if(e.target.closest(".pback")){SS.pop();card.innerHTML=SS[SS.length-1];if(SS.length>1)card.insertAdjacentHTML("afterbegin",PBACK);return;}
+  if(e.target.closest(".pcx")) closeCard(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeCard(); });
 const DEFS={
 "Org grade (20\u201380)":"Overall talent-finding grade on the 20\u201380 scouting scale. Combines five channels: draft surplus vs slot, net trades, international signings, reclamation signings, and waiver claims. Free-agent spending is excluded.",
@@ -842,7 +851,7 @@ function openDef(title, body){
   card.innerHTML=`<button class="pcx" aria-label="Close">\u2715</button>
    <div class="pchead"><span class="pcname" style="font-size:22px">${title}</span></div>
    <div class="pcsub" style="font-size:14px;line-height:1.55;margin-top:6px">${body}</div>`;
-  mask.classList.add("on");card.classList.add("on");
+  sheetShown();
 }
 const TPD={"Draft WAR":"draft","Surplus vs slot":"draft","Hit rate %":"hits21","Rd 5+ WAR":"late","Net trades":"deal*",
  "Trade WAR":"trades","FA WAR":"fa","Reclamation":"scrap","Waivers":"waiver","Intl WAR":"intl",
@@ -899,7 +908,7 @@ function openDrill(kind, t){
    <div class="pchead"><span class="pcname" style="font-size:21px">${title}</span></div>
    ${def?`<div class="pcsub" style="margin:4px 0 8px">${def}</div>`:""}
    <div>${body}</div>`;
-  mask.classList.add("on");card.classList.add("on");
+  sheetShown();
 }
 document.addEventListener("click",e=>{
   const s=e.target.closest("[data-dr]");
@@ -1046,7 +1055,7 @@ function openProspect(i){
    <div class="pcsub">${r[1]||"—"} · ${XL[r[2]]} · age ${r[4]}${r[5]<=-10?` · <b>${(-r[5]/10).toFixed(1)} yrs young for level</b>`:""} · ${lineOf(r[3],r[7])}${r[8]?" · early sample":""}</div>
    ${hd[2]>=8?odds:`<div class="pcsub">${odds}</div>`}
    ${comps.map(({hh,sim})=>`<div class="lrow"><span class="lname"><b>${XN[hh[0]]}</b><br><span class="lmeta">${hh[1]} ${XL[hh[2]]} · age ${hh[4]} · ${lineOf(hh[3],hh[7])}</span></span><span class="lmeta">${sim}%</span>${roleChip(hh[8],hh[5],hh[6])}</div>`).join("")}`;
-  mask.classList.add("on");card.classList.add("on");
+  sheetShown();
 }
 // MLB finder
 const careerOf=n=>{const es=PC[n];if(!es)return 0;let best=0;
